@@ -1,0 +1,6 @@
+name,email,income,employment_years,credit_score,loan_amount,loan_purpose,term_months,interest_rate,decision,reason,expert_notes
+John Doe,john.doe@example.com,75000,5,720,25000,Personal,36,7.5,approved,Strong income and credit history,Client has stable employment.
+Jane Smith,jane.smith@example.com,45000,2,640,15000,Debt Consolidation,48,12.0,rejected,High debt-to-income ratio,Previous late payments noted.
+Bob Wilson,bob.wilson@example.com,120000,10,800,50000,Mortgage,360,6.5,approved,Excellent credit profile,Top-tier applicant.
+Alice Brown,alice.brown@example.com,30000,1,580,5000,Personal,24,15.0,rejected,Limited credit history and low income,High risk profile.
+Charlie Davis,charlie.davis@example.com,90000,7,750,30000,Business,60,8.5,approved,Established professional with good score,Solid business case.

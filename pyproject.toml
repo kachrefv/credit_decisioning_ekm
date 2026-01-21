@@ -1,0 +1,25 @@
+[project]
+name = "ekm"
+version = "1.0.0"
+description = "Episodic Knowledge Mesh: Enterprise Edition"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "numpy",
+    "networkx",
+    "scikit-learn",
+    "qdrant-client",
+    "openai",
+    "pydantic",
+    "python-dotenv",
+    "python-jose[cryptography]",
+    "sqlalchemy",
+    "sentence-transformers"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
