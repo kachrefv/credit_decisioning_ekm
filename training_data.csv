@@ -1,0 +1,11 @@
+name,email,income,employment_years,credit_score,loan_amount,loan_purpose,term_months,interest_rate,decision,reason,expert_notes
+Alice Johnson,alice.j@example.com,95000,8,780,45000,Mortgage,180,4.2,approved,Excellent credit depth and stable high income.,Classic prime borrower.
+Bob Smith,bob.smith@example.com,32000,1,580,12000,Personal,48,12.5,rejected,High debt-to-income risk and poor credit score history.,High risk of default detected.
+Charlie Davis,charlie.d@example.com,55000,3,690,15000,Business,36,8.0,approved,Stable income with moderate risk profile.,Small business startup loan.
+Diana Prince,diana.p@example.com,120000,12,820,60000,Consolidation,60,5.5,approved,Superior asset backing and flawless repayment history.,Top tier client.
+Evan Wright,evan.w@example.com,45000,2,640,8000,Personal,24,9.5,requires_manual_review,Borderline credit score with recent employment change.,Needs human verification of paystubs.
+Fiona Chen,fiona.c@example.com,72000,5,710,25000,Mortgage,120,4.8,approved,Consistent employment and solid DTI ratio.,Verified through mesh grounding.
+George Miller,george.m@example.com,28000,0.5,520,5000,Personal,12,15.0,rejected,Insufficient employment history and critical credit failures.,Non-repayment high probability.
+Hannah Abbott,hannah.a@example.com,88000,7,740,30000,Business,48,6.5,approved,Strong business plan and historical financial stability.,Approved based on sector precedents.
+Ian Malcolm,ian.m@example.com,150000,15,850,100000,Mortgage,360,3.9,approved,Exceptional net worth and zero-risk profile.,Limit auto-increased.
+Julia San,julia.s@example.com,40000,4,610,7000,Consolidation,24,11.0,requires_manual_review,Fair credit with high current debt burden.,Check collateral availability.

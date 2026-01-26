@@ -4,20 +4,53 @@ import {
     Card,
     CardBody,
     CardHeader,
-    Divider,
     Progress,
     Chip,
-    Tooltip,
-    Spinner
+    Spinner,
+    Select,
+    SelectItem,
+    Table,
+    TableHeader,
+    TableColumn,
+    TableBody,
+    TableRow,
+    TableCell
 } from "@heroui/react";
+import Papa from 'papaparse';
 import client from '../api/client';
 import { LoadingOverlay } from '../components/Loading';
 
+type IngestionStep = 'SELECT' | 'MAP' | 'PROGRESS';
+
+const REQUIRED_FIELDS = [
+    { key: 'name', label: 'Borrower Name', required: true },
+    { key: 'email', label: 'Email Address', required: true },
+    { key: 'income', label: 'Annual Income', required: true },
+    { key: 'credit_score', label: 'Credit Score', required: true },
+    { key: 'decision', label: 'Final Decision', required: true },
+    { key: 'reason', label: 'Decision Reason', required: true }
+];
+
+const OPTIONAL_FIELDS = [
+    { key: 'employment_years', label: 'Employment Years' },
+    { key: 'debt_to_income_ratio', label: 'DTI Ratio' },
+    { key: 'loan_amount', label: 'Loan Amount' },
+    { key: 'loan_purpose', label: 'Loan Purpose' },
+    { key: 'term_months', label: 'Term (Months)' },
+    { key: 'interest_rate', label: 'Interest Rate' },
+    { key: 'expert_notes', label: 'Expert Notes' }
+];
+
 export default function Training() {
+    const [step, setStep] = useState<IngestionStep>('SELECT');
     const [loading, setLoading] = useState(false);
     const [progress, setProgress] = useState(0);
     const [status, setStatus] = useState<any>(null);
     const [logs, setLogs] = useState<string[]>(["[SYSTEM] Kernel initialized.", "[SYSTEM] Awaiting ingestion signal..."]);
+    const [csvFile, setCsvFile] = useState<File | null>(null);
+    const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+    const [mapping, setMapping] = useState<Record<string, string>>({});
+    
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const addLog = (msg: string) => {
@@ -35,21 +68,49 @@ export default function Training() {
         a.click();
     };
 
-    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
 
+        setCsvFile(file);
+        
+        // Parse headers
+        Papa.parse(file, {
+            preview: 1,
+            complete: (results) => {
+                if (results.data && results.data.length > 0) {
+                    const headers = results.data[0] as string[];
+                    setCsvHeaders(headers);
+                    
+                    // Attempt auto-mapping
+                    const initialMapping: Record<string, string> = {};
+                    [...REQUIRED_FIELDS, ...OPTIONAL_FIELDS].forEach(field => {
+                        const match = headers.find(h => h.toLowerCase() === field.key.toLowerCase() || h.toLowerCase().includes(field.key.toLowerCase()));
+                        if (match) initialMapping[field.key] = match;
+                    });
+                    setMapping(initialMapping);
+                    setStep('MAP');
+                }
+            }
+        });
+    };
+
+    const handleIngest = async () => {
+        if (!csvFile) return;
+
+        setStep('PROGRESS');
         setLoading(true);
         setStatus(null);
         setProgress(0);
-        setLogs(["[SYSTEM] Connection established.", `[INGEST] Loading ${file.name}...`]);
+        setLogs(["[SYSTEM] Connection established.", `[INGEST] Mapping confirmed. Starting ingestion...`]);
 
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', csvFile);
+        formData.append('mapping', JSON.stringify(mapping));
 
         try {
             setProgress(30);
-            addLog("Uploading dataset to MESH core...");
+            addLog("Uploading mapped dataset to MESH core...");
 
             const res = await client.post('/train/bulk', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
@@ -62,7 +123,6 @@ export default function Training() {
             setProgress(80);
             addLog("Vectorizing nodes and rebuilding topology...");
 
-            // Artificial smoothing delay for the processing phase
             setTimeout(() => {
                 setProgress(100);
                 setStatus(res.data);
@@ -81,6 +141,12 @@ export default function Training() {
     const triggerFilePicker = () => {
         fileInputRef.current?.click();
     };
+
+    const updateMapping = (field: string, csvHeader: string) => {
+        setMapping(prev => ({ ...prev, [field]: csvHeader }));
+    };
+
+    const isMappingValid = REQUIRED_FIELDS.every(f => mapping[f.key]);
 
     return (
         <div className="flex flex-col gap-10 max-w-6xl mx-auto p-4 py-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -107,116 +173,164 @@ export default function Training() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                {/* Main Action Area */}
-                <Card className="lg:col-span-7 border-none shadow-2xl rounded-[3rem] bg-white dark:bg-zinc-950 overflow-hidden relative">
-                    {loading && <LoadingOverlay label="Synchronizing Knowledge Mesh..." />}
-
-                    <CardHeader className="p-10 pb-2 flex flex-col items-start gap-1">
-                        <h3 className="text-2xl font-black tracking-tight">Bulk Ingestion</h3>
-                        <p className="text-sm text-default-400">Drag and drop your historical datasets to train the agent.</p>
-                    </CardHeader>
-
-                    <CardBody className="p-10 flex flex-col gap-8">
-                        <div
-                            className={`
-                                group relative h-64 border-2 border-dashed rounded-[2.5rem] 
-                                flex flex-col items-center justify-center gap-4 transition-all duration-500
-                                cursor-pointer
-                                ${loading ? 'border-primary/20 bg-primary/5' : 'border-default-200 hover:border-primary hover:bg-primary/5'}
-                            `}
-                            onPress={triggerFilePicker}
-                        >
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                className="hidden"
-                                accept=".csv"
-                                onChange={handleFileUpload}
-                                disabled={loading}
-                            />
-
-                            <div className={`
-                                w-20 h-20 rounded-[2rem] bg-default-100 flex items-center justify-center 
-                                group-hover:scale-110 group-hover:bg-primary transition-all duration-500
-                            `}>
-                                <span className={`text-3xl font-black group-hover:text-white transition-colors`}>+</span>
+                <Card className="lg:col-span-8 border-none shadow-2xl rounded-[3rem] bg-white dark:bg-zinc-950 overflow-hidden relative min-h-[500px]">
+                    {step === 'SELECT' && (
+                        <div className="p-10 flex flex-col h-full animate-in fade-in duration-500">
+                            <div className="mb-10">
+                                <h3 className="text-2xl font-black tracking-tight">Bulk Ingestion</h3>
+                                <p className="text-sm text-default-400">Step 1: Upload your historical datasets.</p>
                             </div>
 
-                            <div className="text-center">
-                                <p className="font-black text-xl tracking-tight">Select CSV Dataset</p>
-                                <p className="text-sm text-default-400 font-medium">Click here or drag files into this sector</p>
-                            </div>
-
-                            {loading && (
-                                <div className="absolute inset-0 flex items-center justify-center rounded-[2.5rem] bg-zinc-950/20 backdrop-blur-[2px]">
-                                    <Spinner size="lg" color="primary" />
-                                </div>
-                            )}
-                        </div>
-
-                        {loading && (
-                            <div className="space-y-4 animate-in fade-in duration-500">
-                                <div className="flex justify-between items-end">
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-primary">Mesh Ingestion</span>
-                                        <span className="text-lg font-black">{progress}% Syncing</span>
-                                    </div>
-                                    <span className="text-xs font-mono text-default-400">CORE01::ACTIVE</span>
-                                </div>
-                                <Progress
-                                    value={progress}
-                                    className="h-3"
-                                    color="primary"
-                                    isStriped
-                                    classNames={{
-                                        base: "max-w-full",
-                                        indicator: "bg-gradient-to-r from-primary to-indigo-600",
-                                        track: "bg-default-100"
-                                    }}
+                            <div
+                                className="group relative flex-1 border-2 border-dashed border-default-200 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 transition-all duration-500 cursor-pointer hover:border-primary hover:bg-primary/5"
+                                onClick={triggerFilePicker}
+                            >
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    className="hidden"
+                                    accept=".csv"
+                                    onChange={handleFileSelect}
                                 />
+                                <div className="w-20 h-20 rounded-[2rem] bg-default-100 flex items-center justify-center group-hover:scale-110 group-hover:bg-primary transition-all duration-500">
+                                    <span className="text-3xl font-black group-hover:text-white transition-colors">+</span>
+                                </div>
+                                <div className="text-center">
+                                    <p className="font-black text-xl tracking-tight">Select CSV Dataset</p>
+                                    <p className="text-sm text-default-400 font-medium">Click here or drag files into this sector</p>
+                                </div>
                             </div>
-                        )}
+                        </div>
+                    )}
 
-                        {status && (
-                            <div className="p-8 bg-success-50/50 border border-success-200 rounded-[2.5rem] animate-in zoom-in-95 duration-500">
-                                <div className="flex items-center gap-6">
-                                    <div className="w-16 h-16 bg-success rounded-full flex items-center justify-center shadow-xl shadow-success/20">
-                                        <span className="text-white text-2xl font-black">✓</span>
+                    {step === 'MAP' && (
+                        <div className="p-10 flex flex-col h-full animate-in slide-in-from-right-10 duration-500">
+                            <div className="mb-10 flex justify-between items-start">
+                                <div>
+                                    <h3 className="text-2xl font-black tracking-tight">Field Mapping</h3>
+                                    <p className="text-sm text-default-400">Step 2: Align CSV columns with system requirements.</p>
+                                </div>
+                                <Button variant="flat" size="sm" className="rounded-xl font-bold" onPress={() => setStep('SELECT')}>Change File</Button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto max-h-[600px] pr-2 custom-scrollbar">
+                                <Table aria-label="Field Mapping Table" removeWrapper className="mb-6">
+                                    <TableHeader>
+                                        <TableColumn className="bg-default-50 font-black uppercase text-[10px] tracking-widest">System Field</TableColumn>
+                                        <TableColumn className="bg-default-50 font-black uppercase text-[10px] tracking-widest">CSV Column Match</TableColumn>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {[...REQUIRED_FIELDS, ...OPTIONAL_FIELDS].map((field) => (
+                                            <TableRow key={field.key} className="border-b border-default-100">
+                                                <TableCell>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-bold text-sm">{field.label}</span>
+                                                        {'required' in field && <span className="text-[10px] text-danger font-black uppercase">Required</span>}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Select
+                                                        placeholder="Select column"
+                                                        aria-label={`Match ${field.label}`}
+                                                        selectedKeys={mapping[field.key] ? [mapping[field.key]] : []}
+                                                        onSelectionChange={(keys) => updateMapping(field.key, Array.from(keys)[0] as string)}
+                                                        variant="bordered"
+                                                        size="sm"
+                                                        classNames={{
+                                                            trigger: "rounded-xl border-default-200",
+                                                        }}
+                                                    >
+                                                        {csvHeaders.map((header) => (
+                                                            <SelectItem key={header} textValue={header}>{header}</SelectItem>
+                                                        ))}
+                                                    </Select>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+
+                            <div className="pt-6 border-t border-default-100 flex justify-end gap-3 bg-white/80 backdrop-blur-md sticky bottom-0 z-20">
+                                <Button 
+                                    color="primary" 
+                                    size="lg" 
+                                    className="font-black px-12 rounded-2xl shadow-xl shadow-primary/30" 
+                                    isDisabled={!isMappingValid}
+                                    onPress={handleIngest}
+                                >
+                                    Confirm & Ingest
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+
+                    {step === 'PROGRESS' && (
+                        <div className="p-10 flex flex-col h-full items-center justify-center text-center animate-in zoom-in-95 duration-500">
+                            {loading && <LoadingOverlay label="Synchronizing Knowledge Mesh..." />}
+                            
+                            {!status ? (
+                                <div className="space-y-8 w-full max-w-md">
+                                    <div className="w-24 h-24 bg-primary/10 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6">
+                                        <Spinner size="lg" color="primary" />
                                     </div>
-                                    <div className="flex-1">
-                                        <h4 className="text-xl font-black text-success-900 tracking-tight">Sync Complete</h4>
-                                        <div className="flex flex-wrap gap-2 mt-2">
-                                            <Chip variant="flat" color="success" className="font-bold border-none">{status.trained_models} Vectors</Chip>
-                                            <Chip variant="flat" color="success" className="font-bold border-none">{status.training_duration.toFixed(2)}s Latency</Chip>
-                                        </div>
+                                    <div className="space-y-2">
+                                        <h4 className="text-2xl font-black">{progress}% Syncing</h4>
+                                        <p className="text-default-400 font-medium">Injecting data into the Episodic Knowledge Mesh core.</p>
+                                    </div>
+                                    <Progress
+                                        value={progress}
+                                        className="h-3"
+                                        color="primary"
+                                        isStriped
+                                        classNames={{
+                                            indicator: "bg-gradient-to-r from-primary to-indigo-600",
+                                            track: "bg-default-100"
+                                        }}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="space-y-8 animate-in zoom-in-95 duration-500">
+                                    <div className="w-24 h-24 bg-success rounded-[2.5rem] flex items-center justify-center mx-auto shadow-2xl shadow-success/40 scale-110">
+                                        <span className="text-white text-4xl font-black">✓</span>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <h4 className="text-3xl font-black text-success-900 tracking-tight">Mesh Synchronized</h4>
+                                        <p className="text-default-500 font-medium">Historical precedent successfully integrated.</p>
+                                    </div>
+                                    <div className="flex justify-center gap-4">
+                                        <Chip variant="flat" color="success" className="font-black h-10 px-6 border-none text-lg">
+                                            {status.trained_models} Entities
+                                        </Chip>
+                                        <Chip variant="flat" color="success" className="font-black h-10 px-6 border-none text-lg">
+                                            {status.training_duration.toFixed(1)}s Logged
+                                        </Chip>
                                     </div>
                                     <Button
                                         color="success"
-                                        variant="shadow"
-                                        className="font-black h-12 rounded-2xl px-6"
-                                        onPress={() => { setStatus(null); setProgress(0); setLogs([]); }}
+                                        size="lg"
+                                        className="font-black px-12 h-14 rounded-2xl shadow-xl shadow-success/20 mt-4"
+                                        onPress={() => { setStep('SELECT'); setStatus(null); setProgress(0); setLogs([]); }}
                                     >
-                                        New Cycle
+                                        Start New Cycle
                                     </Button>
                                 </div>
-                            </div>
-                        )}
-                    </CardBody>
+                            )}
+                        </div>
+                    )}
                 </Card>
 
-                {/* Info & Logs Sidebar */}
-                <div className="lg:col-span-5 flex flex-col gap-8">
-                    {/* System Monitor */}
+                <div className="lg:col-span-4 flex flex-col gap-6">
                     <Card className="border-none shadow-xl rounded-[2.5rem] bg-zinc-900 text-white overflow-hidden">
                         <CardHeader className="p-8 pb-4 flex items-center gap-3">
-                            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-                            <span className="text-[10px] font-black uppercase tracking-widest opacity-60">System Monitor</span>
+                            <div className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_primary]"></div>
+                            <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Session Logs</span>
                         </CardHeader>
                         <CardBody className="p-8 pt-0">
-                            <div className="bg-black/40 rounded-2xl p-6 font-mono text-xs leading-relaxed overflow-hidden">
+                            <div className="bg-black/40 rounded-2xl p-6 font-mono text-[11px] leading-relaxed overflow-hidden">
                                 {logs.map((log, i) => (
-                                    <div key={i} className={`mb-1 ${log.includes('!!') ? 'text-red-400' : 'text-emerald-400/80'}`}>
-                                        {log}
+                                    <div key={i} className={`mb-1.5 ${log.includes('!!') ? 'text-red-400' : 'text-primary'}`}>
+                                        <span className="opacity-40">{log.split('] ')[0]}]</span> {log.split('] ')[1]}
                                     </div>
                                 ))}
                                 {loading && (
@@ -226,38 +340,28 @@ export default function Training() {
                         </CardBody>
                     </Card>
 
-                    {/* Architecture Stats */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <Card className="border-none shadow-lg bg-indigo-600 text-white p-6 rounded-[2rem]">
-                            <span className="text-[10px] font-black uppercase opacity-60">Knowledge Density</span>
-                            <div className="text-3xl font-black mt-2">High</div>
-                            <Progress value={88} color="secondary" size="sm" className="mt-4" />
-                        </Card>
-                        <Card className="border-none shadow-lg bg-zinc-900 text-white p-6 rounded-[2rem]">
-                            <span className="text-[10px] font-black uppercase opacity-60">Mesh Mode</span>
-                            <div className="text-3xl font-black mt-2 text-primary">Active</div>
-                            <div className="mt-4 flex gap-1">
-                                {[1, 2, 3, 4, 5].map(i => <div key={i} className="w-1.5 h-6 bg-primary/20 rounded-full flex items-end"><div className="w-full bg-primary rounded-full transition-all duration-1000" style={{ height: `${Math.random() * 100}%` }}></div></div>)}
-                            </div>
-                        </Card>
-                    </div>
-
-                    {/* Technical Specs */}
-                    <Card className="border-none shadow-sm rounded-[2rem] bg-default-50 p-8 border border-default-100">
-                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] mb-4 text-default-400">Ingestion Protocol</h4>
-                        <ul className="space-y-3">
+                    <Card className="border-none shadow-sm rounded-[2.5rem] bg-default-50 p-8 border border-default-100 h-full">
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] mb-6 text-default-400">Mesh Protocol</h4>
+                        <div className="space-y-6">
                             {[
-                                "Async CSV Multi-threaded Parsing",
-                                "Incremental Identity Resolution",
-                                "Embedding Vectorization (mesh-v4)",
-                                "Qdrant Cluster Synchronization"
-                            ].map((spec, i) => (
-                                <li key={i} className="flex items-center gap-3 text-xs font-bold text-default-700">
-                                    <div className="w-1 h-1 bg-primary rounded-full"></div>
-                                    {spec}
-                                </li>
+                                { title: "Step 1: Selection", desc: "Binary dataset identification and core validation." },
+                                { title: "Step 2: Mapping", desc: "Conceptual alignment of external dimensions." },
+                                { title: "Step 3: Ingestion", desc: "Topological re-linking and vector persistence." }
+                            ].map((s, i) => (
+                                <div key={i} className="flex gap-4">
+                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
+                                        (i === 0 && step === 'SELECT') || (i === 1 && step === 'MAP') || (i === 2 && step === 'PROGRESS')
+                                        ? 'bg-primary text-white' : 'bg-default-200 text-default-400'
+                                    }`}>
+                                        {i + 1}
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-black">{s.title}</span>
+                                        <span className="text-xs text-default-400 leading-tight">{s.desc}</span>
+                                    </div>
+                                </div>
                             ))}
-                        </ul>
+                        </div>
                     </Card>
                 </div>
             </div>

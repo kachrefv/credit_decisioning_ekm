@@ -1,8 +1,8 @@
 # Credithos
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![License](https://img.shields.io/badge/license-Educational_Use_Only-orange.svg)
 ![Status](https://img.shields.io/badge/status-production_ready-success)
-![AI-Powered](https://img.shields.io/badge/AI-DeepSeek_Integrated-magenta)
+![AI-Powered](https://img.shields.io/badge/AI-DeepSeek_Grounded-magenta)
 
 **The Enterprise-Grade Episodic Knowledge Mesh for Credit Intelligence**
 
@@ -12,56 +12,52 @@
 
 ## 🚀 Key Innovations
 
-*   **Episodic Knowledge Mesh (EKM):** Unlike stateless LLM calls, Credithos maintains a persistent memory of `Borrowers`, `Applications`, and `Decisions`.
-*   **Agentic Reasoning:** Integrates **DeepSeek-R1** via a RAG (Retrieval-Augmented Generation) pipeline to analyze risk factors against a vector database of similar historical cases.
-*   **Incremental Learning:** The system gets smarter with every decision. New data is automatically ingested, embedded, and added to the mesh without requiring full model retraining.
-*   **Clean Architecture:** Built with strict adherence to Domain-Driven Design (DDD) principles, separating Core Logic, Infrastructure, and API layers.
+*   **Episodic Knowledge Mesh (EKM):** Persistent memory of `Borrowers`, `Applications`, and `Decisions` stored as high-dimensional vectors.
+*   **Grounded Reasoning:** Uses **DeepSeek-R1** to analyze risk factors against a vector database (Qdrant) of similar cases, ensuring explainable results.
+*   **Dynamic CSV Mapping:** A sophisticated ingestion protocol that allows users to map custom CSV headers to the system's internal schema on-the-fly.
+*   **Sleep Consolidation:** Biological-inspired algorithm to cluster and merge redundant knowledge units, keeping the mesh efficient.
+
+---
+
+## 📊 Visual Workspace
+
+### Risk Evaluation Wizard
+The wizard guides underwriters through complex decisions, providing real-time AI reasoning grounded in historical precedents.
+
+![Evaluation Approved](./assets/screenshots/evaluation_approved.png)
+*Sarah Connor gets approved based on strong precedents.*
+
+### Dynamic Data Mapping
+Easily ingest data with varying schemas. Our UI detects headers and allows manual alignment before ingestion.
+
+![Mapping UI](./assets/screenshots/mapping_ui.png)
+*Aligning FICO scores and other custom headers.*
 
 ---
 
 ## 🛠️ Technical Stack
 
 ### Backend (The Brain)
-*   **Framework:** FastAPI (Async/High Performance)
-*   **AI/LLM:** DeepSeek via OpenAI Compatibility Layer
-*   **Memory/Vector DB:** Qdrant Client (In-memory/Persisted) & Scikit-learn (KNN Graphs)
-*   **Graph Theory:** NetworkX for risk propagation analysis
-*   **Database:** PostgreSQL (SQLAlchemy ORM)
+*   **FastAPI:** High-performance async gateway.
+*   **Qdrant:** State-of-the-art vector engine for episodic memory.
+*   **DeepSeek-R1:** Advanced reasoning LLM for grounded decision synthesis.
+*   **NetworkX:** Used for topological analysis of the knowledge mesh.
 
 ### Frontend (The Control Center)
-*   **Framework:** React 19 + TypeScript + Vite
-*   **Platform:** Electron (Desktop Native Experience)
-*   **UI System:** TailwindCSS + HeroUI
-*   **Visualization:** Interactive Data Dashboards
+*   **React 19 + HeroUI:** Premium, state-of-the-art interface design.
+*   **Electron:** Native desktop wrapper for workstation use cases.
+*   **Vite:** Sub-second build and hot-reloading.
 
 ---
 
-## 🏗️ Architecture Highlights
+## 📜 Technical Documentation
 
-This project follows a **Fractal Clean Architecture**:
-
-```text
-src/
-├── ekm/
-│   ├── api/            # Primary Adapters (FastAPI)
-│   ├── core/           # Kernel & Shared Logic
-│   ├── domain/         # Pure Business Logic (Entities, Value Objects)
-│   ├── infra/          # Secondary Adapters (DB, DeepSeek, FileSystem)
-│   └── services/       # Application Services & Orchestration
-```
-
-### Pro Tip: "Cold Start" vs. "Mesh Mode"
-The system is designed with a bi-modal engine:
-1.  **Cold Start:** Relies on heuristic baselines when data is scarce.
-2.  **Mesh Mode:** Automatically activates when the `mesh_threshold` (1000 nodes) is reached, unlocking vector-based similar case retrieval for AI decision grounding.
+For a deep dive into the mathematics of the Knowledge Mesh and our Qdrant implementation, refer to:
+👉 **[Credithos Technical Whitepaper](./credithos_technical_report.tex)** (LaTeX Source)
 
 ---
 
 ## ⚡ Quick Start
-
-### Prerequisites
-*   Python 3.11+
-*   Node.js 20+
 
 ### 1. Backend Setup
 ```bash
@@ -71,10 +67,11 @@ python -m venv venv311
 
 # Install dependencies
 pip install -e .
+pip install passlib python-multipart python-jose[cryptography]
 
 # Configure Environment
 cp .env.example .env
-# Edit .env and add your DEEPSEEK_API_KEY
+# Edit .env and add your DEEPSEEK_API_KEY and QDRANT details
 ```
 
 ### 2. Frontend Setup
@@ -89,13 +86,17 @@ npm install
 python run_api.py
 
 # Terminal 2: Launch the Electron Dashboard
-cd ui && npm run dev:electron
+cd ui && npm run dev
 ```
 
 ---
 
-## 👥 Authors & Maintainers
+## 🤝 Contributing
+Contributions are welcome! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
+
+## ⚖️ License
+This project is licensed for **Educational Use Only**. See [LICENSE](./LICENSE) for full details.
+
+---
 
 Architected with ❤️ by **Achref Riahi** and **Eya Marzougui**
-
-*Credithos by EKM*

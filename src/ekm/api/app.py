@@ -1,8 +1,9 @@
 import asyncio
+import json
 import csv
 import io
 import uuid
-from fastapi import FastAPI, HTTPException, Depends, File, UploadFile
+from fastapi import FastAPI, HTTPException, Depends, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict, Any
 import os
@@ -181,26 +182,45 @@ async def train(request: TrainAgentRequest, db: Session = Depends(get_db)):
     )
 
 @app.post("/train/bulk", response_model=TrainAgentResponse, dependencies=[Depends(get_current_user)])
-async def train_bulk(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    """Upload a CSV to bulk ingest historical training data."""
+async def train_bulk(
+    file: UploadFile = File(...), 
+    mapping: str = Form(None), 
+    db: Session = Depends(get_db)
+):
+    """Upload a CSV to bulk ingest historical training data with optional column mapping."""
     start_time = time.time()
     
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Only CSV files are supported")
     
     try:
+        # Parse mapping if provided
+        column_map = {}
+        if mapping:
+            try:
+                column_map = json.loads(mapping)
+            except Exception as e:
+                print(f"Failed to parse mapping JSON: {e}")
+
         content = await file.read()
         stream = io.StringIO(content.decode("utf-8"))
         reader = csv.DictReader(stream)
         
-        required_cols = ['name', 'email', 'income', 'credit_score', 'decision', 'reason']
+        # Internal required fields
+        internal_fields = ['name', 'email', 'income', 'credit_score', 'decision', 'reason']
         
+        # Helper to get value based on mapping or default
+        def get_val(row, internal_key, default=None):
+            csv_key = column_map.get(internal_key, internal_key)
+            val = row.get(csv_key)
+            return val if val is not None else row.get(internal_key, default)
+
         repo = CreditRepository(db)
         count = 0
         
         for row in reader:
-            # Validate required columns
-            if not all(col in row for col in required_cols):
+            # Check if we have the minimal required data (mapped or direct)
+            if not get_val(row, 'name') or not get_val(row, 'email'):
                  continue
                  
             # Generate IDs
@@ -211,14 +231,14 @@ async def train_bulk(file: UploadFile = File(...), db: Session = Depends(get_db)
             # Save Borrower
             repo.save_borrower({
                 "id": borrower_id,
-                "name": row['name'],
-                "email": row['email'],
-                "income": float(row['income']),
-                "credit_score": int(row['credit_score']),
-                "employment_years": float(row.get('employment_years', 0)),
-                "debt_to_income_ratio": float(row.get('debt_to_income_ratio', 0.3)),
-                "address": str(row.get('address', 'Unknown')),
-                "phone": str(row.get('phone', 'N/A')),
+                "name": get_val(row, 'name'),
+                "email": get_val(row, 'email'),
+                "income": float(get_val(row, 'income', 0)),
+                "credit_score": int(get_val(row, 'credit_score', 0)),
+                "employment_years": float(get_val(row, 'employment_years', 0)),
+                "debt_to_income_ratio": float(get_val(row, 'debt_to_income_ratio', 0.3)),
+                "address": str(get_val(row, 'address', 'Unknown')),
+                "phone": str(get_val(row, 'phone', 'N/A')),
                 "is_trained": False
             })
             
@@ -226,10 +246,10 @@ async def train_bulk(file: UploadFile = File(...), db: Session = Depends(get_db)
             repo.save_application({
                 "id": app_id,
                 "borrower_id": borrower_id,
-                "loan_amount": float(row.get('loan_amount', 0)),
-                "loan_purpose": str(row.get('loan_purpose', 'Personal')),
-                "term_months": int(row.get('term_months', 36)),
-                "interest_rate": float(row.get('interest_rate', 0.1)),
+                "loan_amount": float(get_val(row, 'loan_amount', 0)),
+                "loan_purpose": str(get_val(row, 'loan_purpose', 'Personal')),
+                "term_months": int(get_val(row, 'term_months', 36)),
+                "interest_rate": float(get_val(row, 'interest_rate', 0.1)),
                 "is_trained": False
             })
             
@@ -238,10 +258,10 @@ async def train_bulk(file: UploadFile = File(...), db: Session = Depends(get_db)
                 "id": dec_id,
                 "application_id": app_id,
                 "borrower_id": borrower_id,
-                "decision": str(row['decision']).lower(),
-                "reason": str(row['reason']),
-                "expert_notes": str(row.get('expert_notes', '')),
-                "risk_score": float(0.5 if row['decision'].lower() == 'approved' else 0.8),
+                "decision": str(get_val(row, 'decision', 'rejected')).lower(),
+                "reason": str(get_val(row, 'reason', 'Imported case.')),
+                "expert_notes": str(get_val(row, 'expert_notes', '')),
+                "risk_score": float(0.5 if str(get_val(row, 'decision', '')).lower() == 'approved' else 0.8),
                 "confidence": 1.0,
                 "is_trained": False
             })
@@ -258,6 +278,8 @@ async def train_bulk(file: UploadFile = File(...), db: Session = Depends(get_db)
             training_duration=duration
         )
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Bulk training failed: {str(e)}")
 
 @app.post("/decide", response_model=CreditDecisionResponse, dependencies=[Depends(get_current_user)])
