@@ -319,6 +319,19 @@ async def decide(request: CreditDecisionRequest, db: Session = Depends(get_db)):
 async def status():
     return {"mode": credit_memory.mode, "risk_factors": len(credit_memory.risk_factors)}
 
+@app.get("/graph/risk", dependencies=[Depends(get_current_user)])
+async def get_risk_graph():
+    """Returns the risk factor graph for 3D visualization."""
+    return credit_memory.get_risk_graph()
+
+@app.post("/consolidate", dependencies=[Depends(get_current_user)])
+async def consolidate(merge_threshold: float = 0.92):
+    """
+    Manually trigger consolidation of similar risk factors.
+    Merge threshold controls similarity cutoff (0.0-1.0, higher = stricter).
+    """
+    return credit_memory.consolidate_risk_factors(merge_threshold)
+
 @app.get("/status/risk-factors", response_model=RiskFactorStatusResponse, dependencies=[Depends(get_current_user)])
 async def risk_factors():
     analytics = credit_memory.get_risk_factor_analytics()

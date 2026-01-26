@@ -9,3 +9,23 @@ George Miller,george.m@example.com,28000,0.5,520,5000,Personal,12,15.0,rejected,
 Hannah Abbott,hannah.a@example.com,88000,7,740,30000,Business,48,6.5,approved,Strong business plan and historical financial stability.,Approved based on sector precedents.
 Ian Malcolm,ian.m@example.com,150000,15,850,100000,Mortgage,360,3.9,approved,Exceptional net worth and zero-risk profile.,Limit auto-increased.
 Julia San,julia.s@example.com,40000,4,610,7000,Consolidation,24,11.0,requires_manual_review,Fair credit with high current debt burden.,Check collateral availability.
+Kevin Zhang,kevin.z@example.com,85000,6,750,35000,Mortgage,240,4.5,approved,Strong credit score and consistent income.,Low risk mortgage.
+Laura Bass,laura.b@example.com,25000,0.5,540,3000,Personal,12,18.0,rejected,High risk due to low income and poor credit history.,Likely default.
+Mike Ross,mike.r@example.com,95000,5,790,50000,Business,60,7.2,approved,Professional with high earning potential and good credit.,Legal firm startup.
+Nina Patel,nina.p@example.com,62000,4,680,20000,Consolidation,48,9.0,approved,Moderate risk profile with stable employment history.,Debt consolidation.
+Oscar Wilde,oscar.w@example.com,48000,2,620,10000,Personal,36,11.5,requires_manual_review,Recent late payments on existing credit lines.,Manual credit history check.
+Penny Lane,penny.l@example.com,110000,10,810,75000,Mortgage,360,4.1,approved,Exceptional longevity in career and high credit depth.,Stable borrower.
+Quinn Fabray,quinn.f@example.com,35000,1,590,5000,Personal,24,14.0,rejected,Debt-to-income ratio exceeds safe thresholds.,High risk.
+Riley Reid,riley.r@example.com,52000,3,670,15000,Business,36,8.5,approved,Entrepreneur with niche market focus and decent credit.,Ecommerce store expansion.
+Sam Winchester,sam.w@example.com,70000,5,730,40000,Consolidation,60,6.2,approved,Standard profile with multiple accounts in good standing.,Streamlined approval.
+Tina Fey,tina.f@example.com,130000,15,840,120000,Mortgage,180,3.8,approved,High net worth individual with flawless credit report.,Premium client.
+Uma Thurman,uma.t@example.com,45000,3,630,9000,Personal,24,10.0,requires_manual_review,Unusual spike in credit inquiries recently.,Investigate inquiry reasons.
+Victor Hugo,victor.h@example.com,58000,6,700,25000,Business,48,7.8,approved,Consistent cash flow for existing small business.,Working capital.
+Wendy Darling,wendy.d@example.com,22000,0.2,510,2000,Personal,12,20.0,rejected,Critical lack of credit history and low income level.,Non-viable application.
+Xavier Musk,xavier.m@example.com,200000,20,850,500000,Mortgage,360,3.5,approved,Ultra-high income and perfect credit scores.,Top-tier wealth management.
+Yara Greyjoy,yara.g@example.com,78000,8,760,40000,Consolidation,72,5.8,approved,Strong repayment capacity and diversified assets.,Risk-averse borrower.
+Zack Morris,zack.m@example.com,42000,2,660,12000,Personal,48,9.8,approved,Upwardly mobile professional with stable residence.,Personal loan.
+Arthur Dent,arthur.d@example.com,30000,1,570,8000,Personal,36,13.5,rejected,Prior bankruptcy detected in credit history check.,Automatic rejection.
+Brie Larson,brie.l@example.com,89000,7,745,45000,Business,60,6.9,approved,Proven track record in project management and finance.,Expansion loan.
+Caleb Rivers,caleb.r@example.com,55000,4,695,20000,Consolidation,48,8.2,approved,Disciplined credit user with clear consolidation goal.,Verified intent.
+Daisy Ridley,daisy.r@example.com,65000,5,685,15000,Personal,36,9.2,requires_manual_review,Stable income but high utilization on retail cards.,Check debt reduction plan.

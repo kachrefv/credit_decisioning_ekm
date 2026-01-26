@@ -68,3 +68,30 @@ class CreditGraphEngine:
             else:
                 sem = risk.embedding
             risk.structural_signature = np.concatenate([topo, sem])
+
+    def get_graph_data(self) -> Dict:
+        """Type-safe graph export for visualization"""
+        nodes = []
+        links = []
+        
+        # Safe node access
+        for node_id in self.graph.nodes():
+            node_data = self.graph.nodes[node_id]
+            risk_factor = node_data.get('risk_factor')
+            if risk_factor:
+                 nodes.append({
+                    "id": node_id,
+                    "group": risk_factor.risk_level,
+                    "risk_factor": risk_factor.risk_factor,
+                    "val": 1 # For visualization size
+                })
+
+        # Safe edge access 
+        for u, v, data in self.graph.edges(data=True):
+             links.append({
+                "source": u,
+                "target": v,
+                "value": data.get('weight', 0.5)
+            })
+            
+        return {"nodes": nodes, "links": links}

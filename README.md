@@ -55,6 +55,9 @@ Easily ingest data with varying schemas. Our UI detects headers and allows manua
 For a deep dive into the mathematics of the Knowledge Mesh and our Qdrant implementation, refer to:
 👉 **[Credithos Technical Whitepaper](./credithos_technical_report.tex)** (LaTeX Source)
 
+For details on the system optimizations and performance improvements:
+👉 **[Optimization Report](./OPTIMIZATION_REPORT.md)**
+
 ---
 
 ## ⚡ Quick Start
@@ -67,7 +70,7 @@ python -m venv venv311
 
 # Install dependencies
 pip install -e .
-pip install passlib python-multipart python-jose[cryptography]
+pip install passlib python-multipart python-jose[cryptography] scikit-learn matplotlib faiss-cpu
 
 # Configure Environment
 cp .env.example .env

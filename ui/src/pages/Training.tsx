@@ -14,7 +14,8 @@ import {
     TableColumn,
     TableBody,
     TableRow,
-    TableCell
+    TableCell,
+    Slider
 } from "@heroui/react";
 import Papa from 'papaparse';
 import client from '../api/client';
@@ -50,7 +51,10 @@ export default function Training() {
     const [csvFile, setCsvFile] = useState<File | null>(null);
     const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
     const [mapping, setMapping] = useState<Record<string, string>>({});
-    
+    const [consolidating, setConsolidating] = useState(false);
+    const [consolidationResult, setConsolidationResult] = useState<any>(null);
+    const [threshold, setThreshold] = useState(0.92);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const addLog = (msg: string) => {
@@ -73,7 +77,7 @@ export default function Training() {
         if (!file) return;
 
         setCsvFile(file);
-        
+
         // Parse headers
         Papa.parse(file, {
             preview: 1,
@@ -81,7 +85,7 @@ export default function Training() {
                 if (results.data && results.data.length > 0) {
                     const headers = results.data[0] as string[];
                     setCsvHeaders(headers);
-                    
+
                     // Attempt auto-mapping
                     const initialMapping: Record<string, string> = {};
                     [...REQUIRED_FIELDS, ...OPTIONAL_FIELDS].forEach(field => {
@@ -147,6 +151,21 @@ export default function Training() {
     };
 
     const isMappingValid = REQUIRED_FIELDS.every(f => mapping[f.key]);
+
+    const handleConsolidate = async () => {
+        setConsolidating(true);
+        setConsolidationResult(null);
+        addLog("Initiating memory consolidation...");
+        try {
+            const res = await client.post(`/consolidate?merge_threshold=${threshold}`);
+            setConsolidationResult(res.data);
+            addLog(`Consolidation complete: ${res.data.original_count} → ${res.data.consolidated_count} factors (${res.data.merged_count} merged).`);
+        } catch (err: any) {
+            addLog(`!! CONSOLIDATION FAILED: ${err.response?.data?.detail || err.message}`);
+        } finally {
+            setConsolidating(false);
+        }
+    };
 
     return (
         <div className="flex flex-col gap-10 max-w-6xl mx-auto p-4 py-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -252,10 +271,10 @@ export default function Training() {
                             </div>
 
                             <div className="pt-6 border-t border-default-100 flex justify-end gap-3 bg-white/80 backdrop-blur-md sticky bottom-0 z-20">
-                                <Button 
-                                    color="primary" 
-                                    size="lg" 
-                                    className="font-black px-12 rounded-2xl shadow-xl shadow-primary/30" 
+                                <Button
+                                    color="primary"
+                                    size="lg"
+                                    className="font-black px-12 rounded-2xl shadow-xl shadow-primary/30"
                                     isDisabled={!isMappingValid}
                                     onPress={handleIngest}
                                 >
@@ -268,7 +287,7 @@ export default function Training() {
                     {step === 'PROGRESS' && (
                         <div className="p-10 flex flex-col h-full items-center justify-center text-center animate-in zoom-in-95 duration-500">
                             {loading && <LoadingOverlay label="Synchronizing Knowledge Mesh..." />}
-                            
+
                             {!status ? (
                                 <div className="space-y-8 w-full max-w-md">
                                     <div className="w-24 h-24 bg-primary/10 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6">
@@ -349,10 +368,9 @@ export default function Training() {
                                 { title: "Step 3: Ingestion", desc: "Topological re-linking and vector persistence." }
                             ].map((s, i) => (
                                 <div key={i} className="flex gap-4">
-                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
-                                        (i === 0 && step === 'SELECT') || (i === 1 && step === 'MAP') || (i === 2 && step === 'PROGRESS')
+                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${(i === 0 && step === 'SELECT') || (i === 1 && step === 'MAP') || (i === 2 && step === 'PROGRESS')
                                         ? 'bg-primary text-white' : 'bg-default-200 text-default-400'
-                                    }`}>
+                                        }`}>
                                         {i + 1}
                                     </div>
                                     <div className="flex flex-col">
@@ -362,6 +380,51 @@ export default function Training() {
                                 </div>
                             ))}
                         </div>
+                    </Card>
+
+                    <Card className="border-none shadow-xl rounded-[2.5rem] bg-gradient-to-br from-indigo-900 to-purple-900 text-white overflow-hidden">
+                        <CardHeader className="p-8 pb-4">
+                            <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Memory Optimization</span>
+                        </CardHeader>
+                        <CardBody className="p-8 pt-0">
+                            <p className="text-sm opacity-80 mb-6">Merge similar risk factors to reduce noise and improve retrieval quality.</p>
+
+                            <div className="mb-8 space-y-4">
+                                <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60">
+                                    <span>Merge Threshold</span>
+                                    <span>{(threshold * 100).toFixed(0)}%</span>
+                                </div>
+                                <Slider
+                                    step={0.01}
+                                    maxValue={1}
+                                    minValue={0.5}
+                                    value={threshold}
+                                    onChange={(val) => setThreshold(val as number)}
+                                    className="max-w-md"
+                                    color="secondary"
+                                    size="sm"
+                                />
+                                <p className="text-[10px] opacity-40 italic">Higher values are more conservative; lower values merge more aggressively.</p>
+                            </div>
+
+                            <Button
+                                color="secondary"
+                                size="lg"
+                                className="w-full font-black rounded-2xl h-14"
+                                isLoading={consolidating}
+                                onPress={handleConsolidate}
+                            >
+                                {consolidating ? "Consolidating..." : "Consolidate Memory"}
+                            </Button>
+                            {consolidationResult && (
+                                <div className="mt-6 bg-black/30 rounded-2xl p-4 space-y-2 text-sm">
+                                    <div className="flex justify-between"><span className="opacity-60">Original:</span><span className="font-bold">{consolidationResult.original_count}</span></div>
+                                    <div className="flex justify-between"><span className="opacity-60">After:</span><span className="font-bold text-green-400">{consolidationResult.consolidated_count}</span></div>
+                                    <div className="flex justify-between"><span className="opacity-60">Merged:</span><span className="font-bold text-yellow-400">{consolidationResult.merged_count}</span></div>
+                                    <div className="flex justify-between"><span className="opacity-60">Duration:</span><span className="font-bold">{consolidationResult.duration_seconds}s</span></div>
+                                </div>
+                            )}
+                        </CardBody>
                     </Card>
                 </div>
             </div>

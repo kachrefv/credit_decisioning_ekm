@@ -203,3 +203,145 @@ class CreditDecisionMemory:
         else:
             results = self.retriever.find_similar_risk_cases(query_embedding)
             return [res[0].source_application_ids[0] for res in results[:5] if res[0].source_application_ids]
+
+    def get_risk_graph(self) -> Dict[str, Any]:
+        """Returns graph data for visualization."""
+        return self.graph_engine.get_graph_data()
+
+    def consolidate_risk_factors(self, merge_threshold: float = 0.92) -> Dict[str, Any]:
+        """
+        Robustly consolidates similar risk factors.
+        Ensures semantic integrity (within risk level), topological consistency (graph-aware), 
+        and stability (importance-based seeding).
+        """
+        import time
+        start_time = time.time()
+        
+        # 1. Importance-based Seeding: Sort by number of applications
+        factors_list = sorted(
+            list(self.risk_factors.values()), 
+            key=lambda x: len(x.source_application_ids), 
+            reverse=True
+        )
+        original_count = len(factors_list)
+        
+        if original_count < 2:
+            return {
+                "original_count": original_count,
+                "consolidated_count": original_count,
+                "merged_count": 0,
+                "merge_threshold": merge_threshold,
+                "duration_seconds": 0.0,
+                "status": "No sufficient nodes for consolidation"
+            }
+        
+        # Compute similarity matrix for semantic check
+        embeddings = np.stack([rf.embedding for rf in factors_list])
+        norm_embeddings = embeddings / (np.linalg.norm(embeddings, axis=1, keepdims=True) + 1e-9)
+        sim_matrix = np.clip(norm_embeddings @ norm_embeddings.T, -1.0, 1.0)
+        
+        # Pre-fetch neighbors for topological check
+        node_neighbors = {}
+        for rf in factors_list:
+            if rf.id in self.graph_engine.graph:
+                node_neighbors[rf.id] = set(self.graph_engine.graph.neighbors(rf.id))
+            else:
+                node_neighbors[rf.id] = set()
+
+        merged_mask = np.zeros(len(factors_list), dtype=bool)
+        consolidated_factors = {}
+        
+        for i in range(len(factors_list)):
+            if merged_mask[i]:
+                continue
+            
+            seed_rf = factors_list[i]
+            similar_indices = []
+            
+            for j in range(i + 1, len(factors_list)):
+                if merged_mask[j]:
+                    continue
+                
+                candidate_rf = factors_list[j]
+                
+                # Semantic Similarity Check
+                is_semantically_similar = sim_matrix[i, j] > merge_threshold
+                
+                # 2. Risk-Level Partitioning: MUST be same risk level
+                is_risk_compatible = candidate_rf.risk_level == seed_rf.risk_level
+                
+                # 3. Topological Consistency: Jaccard Similarity of neighbors
+                # Only merge if they share at least one neighbor OR if both are isolates
+                neighbors_i = node_neighbors[seed_rf.id]
+                neighbors_j = node_neighbors[candidate_rf.id]
+                
+                has_shared_struct = False
+                if not neighbors_i and not neighbors_j:
+                    has_shared_struct = True # Both isolates
+                elif neighbors_i.intersection(neighbors_j):
+                    has_shared_struct = True # Share at least one neighbor
+                
+                if is_semantically_similar and is_risk_compatible and has_shared_struct:
+                    similar_indices.append(j)
+            
+            if similar_indices:
+                # 4. Metadata Aggregation & Representative Selection
+                merged_embeddings = [seed_rf.embedding]
+                merged_source_ids = list(seed_rf.source_application_ids)
+                
+                # Combine expert notes if any
+                combined_notes = [seed_rf.metadata.get("expert_notes", "")]
+                earliest_ts = seed_rf.metadata.get("timestamp", time.time())
+                
+                for idx in similar_indices:
+                    merged_mask[idx] = True
+                    merged_embeddings.append(factors_list[idx].embedding)
+                    merged_source_ids.extend(factors_list[idx].source_application_ids)
+                    
+                    if "expert_notes" in factors_list[idx].metadata:
+                        combined_notes.append(factors_list[idx].metadata["expert_notes"])
+                    
+                    ts = factors_list[idx].metadata.get("timestamp", time.time())
+                    if ts < earliest_ts:
+                        earliest_ts = ts
+                
+                # Create consolidated factor (Medoid approach: keeps Seed ID and description)
+                consolidated_rf = CreditRiskFactor(
+                    id=seed_rf.id,
+                    risk_factor=seed_rf.risk_factor,
+                    risk_level=seed_rf.risk_level,
+                    source_application_ids=list(set(merged_source_ids)),
+                    embedding=np.mean(merged_embeddings, axis=0),
+                    metadata={
+                        **seed_rf.metadata,
+                        "consolidated_from": len(similar_indices) + 1,
+                        "consolidation_timestamp": time.time(),
+                        "original_timestamp": earliest_ts,
+                        "aggregated_notes": "; ".join(filter(None, set(combined_notes)))
+                    }
+                )
+                consolidated_factors[consolidated_rf.id] = consolidated_rf
+            else:
+                consolidated_factors[seed_rf.id] = seed_rf
+            
+            merged_mask[i] = True
+        
+        # 5. Atomic Update: swap internal state
+        self.risk_factors = consolidated_factors
+        
+        # Rebuild topological signatures and graph
+        # This is CRITICAL after consolidation to reflect new node structure
+        if self.mode == "Mesh Mode" or original_count > 0:
+            self.update_mesh()
+        
+        duration = time.time() - start_time
+        consolidated_count = len(consolidated_factors)
+        
+        return {
+            "original_count": original_count,
+            "consolidated_count": consolidated_count,
+            "merged_count": original_count - consolidated_count,
+            "merge_threshold": merge_threshold,
+            "duration_seconds": round(duration, 3),
+            "status": "Robust consolidation complete"
+        }

@@ -8,10 +8,11 @@ import Borrowers from './pages/Borrowers';
 import Profile from './pages/Profile';
 import Home from './pages/Home';
 import Decisions from './pages/Decisions';
+import GraphPage from './pages/GraphPage';
 import { setAuthToken } from './api/client';
 import { FullPageLoading } from './components/Loading';
 
-type View = 'login' | 'register' | 'dashboard' | 'evaluate' | 'decisions' | 'train' | 'borrowers' | 'profile';
+type View = 'login' | 'register' | 'dashboard' | 'evaluate' | 'decisions' | 'train' | 'borrowers' | 'profile' | 'graph';
 
 function App() {
   const [view, setView] = useState<View>('login');
@@ -52,6 +53,7 @@ function App() {
       case 'train': return <Training />;
       case 'borrowers': return <Borrowers />;
       case 'profile': return <Profile />;
+      case 'graph': return <GraphPage />;
       default: return <Home onNavigate={setView} />;
     }
   };
@@ -69,10 +71,11 @@ function App() {
           onNavigateLogin={() => setView('login')}
         />
       )}
-      {(view === 'dashboard' || view === 'evaluate' || view === 'decisions' || view === 'train' || view === 'borrowers' || view === 'profile') && (
+      {(view === 'dashboard' || view === 'evaluate' || view === 'decisions' || view === 'train' || view === 'borrowers' || view === 'profile' || view === 'graph') && (
         <Dashboard
           onLogout={handleLogout}
           onNavigate={(v: any) => setView(v)}
+          currentView={view}
         >
           {renderDashboardContent()}
         </Dashboard>
