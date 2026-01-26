@@ -5,6 +5,7 @@ from .graph import GraphEngine
 from .retrieval import EKMRetriever
 from .consolidation import ConsolidationEngine
 from .efficient_indexing import ScalableEKM
+from .config import get_config
 import time
 import logging
 
@@ -12,27 +13,40 @@ logger = logging.getLogger(__name__)
 
 class EKM:
     def __init__(self, d: int = 768, k: int = 10, mesh_threshold: int = 1000,
-                 embedding_dim: int = 768, projection_dim: int = 64, use_scalable_index: bool = True):
-        self.d = d
-        self.k = k
-        self.mesh_threshold = mesh_threshold
-        self.use_scalable_index = use_scalable_index
+                 embedding_dim: int = 768, projection_dim: int = 64, use_scalable_index: bool = True,
+                 config_path: str = None):
+        # Load configuration
+        self.config = get_config(config_path)
+
+        self.d = d or self.config.embedding_dim
+        self.k = k or self.config.k_sparse
+        self.mesh_threshold = mesh_threshold or self.config.mesh_threshold
+        self.use_scalable_index = use_scalable_index and self.config.use_scalable_index
 
         self.episodes = []
         self.akus = []
         self.gkus = []
 
-        if use_scalable_index:
+        if self.use_scalable_index:
             # Use the scalable EKM with efficient indexing
             self.scalable_ekm = ScalableEKM(
-                embedding_dim=embedding_dim,
-                projection_dim=projection_dim,
-                k_sparse=k
+                embedding_dim=self.d,
+                projection_dim=projection_dim or self.config.projection_dim,
+                k_sparse=self.k,
+                higher_order_terms=self.config.enable_higher_order_terms
             )
         else:
             # Use the traditional approach
-            self.graph_engine = GraphEngine(k=k, embedding_dim=embedding_dim, projection_dim=projection_dim)
-            self.retriever = EKMRetriever(d=d, projection_dim=projection_dim)
+            self.graph_engine = GraphEngine(
+                k=self.k,
+                embedding_dim=self.d,
+                projection_dim=projection_dim or self.config.projection_dim
+            )
+            self.retriever = EKMRetriever(
+                d=self.d,
+                projection_dim=projection_dim or self.config.projection_dim,
+                candidate_size=self.config.candidate_size
+            )
 
         self.consolidation = ConsolidationEngine()
 

@@ -59,7 +59,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-foreground">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-foreground">
       {view === 'login' && (
         <Login
           onLoginSuccess={handleLoginSuccess}

@@ -14,8 +14,13 @@ class GraphEngine:
         self.tau = tau
         self.graph = nx.DiGraph()
 
-        # Initialize proper tensor operations
-        self.tensor_ops = TensorOperations(embedding_dim=embedding_dim, projection_dim=projection_dim, k_sparse=k)
+        # Initialize proper tensor operations with higher-order terms
+        self.tensor_ops = TensorOperations(
+            embedding_dim=embedding_dim,
+            projection_dim=projection_dim,
+            k_sparse=k,
+            higher_order_terms=True
+        )
 
     def build_knn_graph(self, akus: List[AKU]):
         """
@@ -44,7 +49,7 @@ class GraphEngine:
 
         # Compute sparse pattern tensors using proper tensor operations
         sparse_pattern_tensors, connection_indices = self.tensor_ops.compute_sparse_pattern_tensors(
-            embeddings, cosine_sim, temporal_weights, self.alpha, self.beta
+            embeddings, cosine_sim, temporal_weights, self.alpha, self.beta, self.gamma
         )
 
         # Build the graph using the computed pattern tensors

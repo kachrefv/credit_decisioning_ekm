@@ -5,18 +5,25 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
 import os
 from .tensor_ops import TensorOperations
+from .config import get_config
 
 class EKMRetriever:
     def __init__(self, d: int = 768, candidate_size: int = 100, collection_name: str = "ekm_akus",
-                 projection_dim: int = 64):
-        self.d = d
-        self.candidate_size = candidate_size
-        self.collection_name = collection_name
-        self.projection_dim = projection_dim
+                 projection_dim: int = 64, config_path: str = None):
+        # Load configuration
+        self.config = get_config(config_path)
 
-        # Load credentials from environment
-        qdrant_url = os.getenv("QDRANT_URL", "https://2394163a-1fee-4cd2-a40d-e4765397680f.europe-west3-0.gcp.cloud.qdrant.io:6333")
-        qdrant_api_key = os.getenv("QDRANT_API_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.2ktTYUzfKgTBlBvU1d2nrWsWP96z3lvdN1OOEWjxY_Y")
+        self.d = d or self.config.embedding_dim
+        self.candidate_size = candidate_size or self.config.candidate_size
+        self.collection_name = collection_name
+        self.projection_dim = projection_dim or self.config.projection_dim
+
+        # Load credentials from configuration
+        qdrant_url = self.config.qdrant_url
+        qdrant_api_key = self.config.qdrant_api_key
+
+        if not qdrant_url or not qdrant_api_key:
+            raise ValueError("QDRANT_URL and QDRANT_API_KEY must be set in configuration")
 
         self.client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key, timeout=120)
 
@@ -28,8 +35,13 @@ class EKMRetriever:
         self.W_K = self._orthogonal_init(d + 13, d)  # +13 for topological features
         self.W_V = self._orthogonal_init(d, d)
 
-        # Initialize tensor operations for attention mechanism
-        self.tensor_ops = TensorOperations(embedding_dim=d, projection_dim=projection_dim, k_sparse=10)
+        # Initialize tensor operations for attention mechanism with higher-order terms
+        self.tensor_ops = TensorOperations(
+            embedding_dim=self.d,
+            projection_dim=self.projection_dim,
+            k_sparse=10,
+            higher_order_terms=self.config.enable_higher_order_terms
+        )
 
     def _orthogonal_init(self, rows: int, cols: int) -> np.ndarray:
         """Initialize weight matrices with orthogonal initialization."""

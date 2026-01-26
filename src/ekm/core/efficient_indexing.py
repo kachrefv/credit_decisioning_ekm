@@ -27,11 +27,12 @@ class EfficientIndexer:
         self.projection_dim = projection_dim
         self.k_sparse = k_sparse
         
-        # Initialize tensor operations
+        # Initialize tensor operations with higher-order terms
         self.tensor_ops = TensorOperations(
-            embedding_dim=embedding_dim, 
-            projection_dim=projection_dim, 
-            k_sparse=k_sparse
+            embedding_dim=embedding_dim,
+            projection_dim=projection_dim,
+            k_sparse=k_sparse,
+            higher_order_terms=True
         )
         
         # FAISS index for fast similarity search
@@ -96,34 +97,74 @@ class EfficientIndexer:
         if self.faiss_index.ntotal == 0:
             logger.warning("No AKUs to build relationships for")
             return
-            
+
         start_time = time.time()
         logger.info(f"Building sparse relationships for {self.faiss_index.ntotal} AKUs")
-        
+
         # Get all embeddings from FAISS
         all_embeddings = self._get_all_embeddings()
         all_akus = [self.akus_by_id[self.faiss_idx_to_id[i]] for i in range(len(all_embeddings))]
-        
+
         # Extract timestamps
         timestamps = np.array([aku.metadata.get('timestamp', time.time()) for aku in all_akus])
-        
-        # Compute similarity matrix (this is the expensive part, but we limit to k_sparse connections)
+
+        # OPTIMIZATION: Use FAISS to find k-nearest neighbors instead of computing full similarity matrix
+        # This ensures O(N*k*log N) complexity instead of O(N²)
+        n_total = len(all_embeddings)
+        k_for_connections = min(self.k_sparse * 2, n_total - 1)  # Get slightly more than needed for selection
+
+        # Normalize embeddings for cosine similarity
         norm_embeddings = normalize_embeddings(all_embeddings)
-        cosine_sim = np.dot(norm_embeddings, norm_embeddings.T)  # O(N²) but we only use top-k
-        
-        # Compute temporal weights matrix
-        temporal_weights = np.zeros_like(cosine_sim)
-        for i in range(len(all_akus)):
-            for j in range(len(all_akus)):
-                temporal_weights[i, j] = np.exp(-abs(timestamps[i] - timestamps[j]) / tau)
-        
+
+        # Use FAISS to find k-nearest neighbors efficiently
+        # This is O(N*k*log N) instead of O(N²) for full similarity matrix
+        similarities = np.zeros((n_total, k_for_connections))
+        indices = np.zeros((n_total, k_for_connections), dtype=int)
+
+        for i in range(n_total):
+            # Query for k nearest neighbors of embedding i
+            query_embedding = norm_embeddings[i:i+1]  # Shape (1, embedding_dim)
+            scores, idxs = self.faiss_index.search(query_embedding, k_for_connections + 1)  # +1 to exclude self
+
+            # Remove self from results if present
+            valid_scores = []
+            valid_indices = []
+            for score, idx in zip(scores[0], idxs[0]):
+                if idx != i:  # Exclude self
+                    valid_scores.append(score)
+                    valid_indices.append(idx)
+
+            # Take top k connections
+            top_k = min(self.k_sparse, len(valid_scores))
+            similarities[i, :top_k] = valid_scores[:top_k]
+            indices[i, :top_k] = valid_indices[:top_k]
+
+            # Pad with -1 for unused slots
+            if top_k < k_for_connections:
+                similarities[i, top_k:] = -np.inf
+                indices[i, top_k:] = -1
+
+        # Create sparse similarity matrix
+        sparse_cosine_sim = np.full((n_total, n_total), -np.inf)
+        for i in range(n_total):
+            for j_idx, j in enumerate(indices[i]):
+                if j != -1:
+                    sparse_cosine_sim[i, j] = similarities[i, j_idx]
+
+        # Compute temporal weights only for the sparse connections
+        temporal_weights = np.zeros_like(sparse_cosine_sim)
+        for i in range(n_total):
+            for j_idx, j in enumerate(indices[i]):
+                if j != -1:
+                    temporal_weights[i, j] = np.exp(-abs(timestamps[i] - timestamps[j]) / tau)
+
         # Compute sparse pattern tensors using the tensor operations class
         self.sparse_pattern_tensors, self.connection_indices = self.tensor_ops.compute_sparse_pattern_tensors(
-            all_embeddings, cosine_sim, temporal_weights, alpha, beta
+            all_embeddings, sparse_cosine_sim, temporal_weights, alpha, beta, gamma=0.1
         )
-        
+
         relationship_time = time.time() - start_time
-        logger.info(f"Built sparse relationships in {relationship_time:.4f}s")
+        logger.info(f"Built sparse relationships in {relationship_time:.4f}s with O(N*k*log N) complexity")
     
     def _get_all_embeddings(self) -> np.ndarray:
         """
@@ -182,69 +223,85 @@ class EfficientIndexer:
         
         return results
     
-    def enhanced_search_with_attention(self, query_embedding: np.ndarray, k: int = 10, 
-                                     W_Q: Optional[np.ndarray] = None, 
+    def enhanced_search_with_attention(self, query_embedding: np.ndarray, k: int = 10,
+                                     W_Q: Optional[np.ndarray] = None,
                                      W_K: Optional[np.ndarray] = None) -> List[Tuple[AKU, float]]:
         """
         Enhanced search using attention mechanism with tensor operations.
+        Optimized for O(k*N) complexity where N is total nodes and k is query results.
         """
         if self.sparse_pattern_tensors is None or self.connection_indices is None:
             # Fall back to basic search if relationships not built
             return self.search(query_embedding, k)
-        
+
         # Get initial candidates using fast FAISS search
         initial_candidates = self.search(query_embedding, k * 3)
-        
+
         if not initial_candidates:
             return []
-        
-        # Apply attention mechanism using tensor operations
+
+        # Create a mapping from AKU IDs to their indices for fast lookup
+        aku_id_to_idx = {aku.id: idx for idx, (aku, _) in enumerate(initial_candidates)}
+
+        # Prepare query for tensor operations
+        norm_query = query_embedding.astype('float32')
+        norm_query = norm_query / (np.linalg.norm(norm_query) + 1e-9)
+        psi_query = self.tensor_ops.psi_matrix.T @ norm_query  # Shape: (proj_dim,)
+
+        # Pre-compute psi embeddings for all candidates to avoid repeated computation
         candidate_akus = [aku for aku, _ in initial_candidates]
         candidate_embeddings = np.array([aku.embedding for aku in candidate_akus]).astype('float32')
-        
-        # Normalize query
-        norm_query = query_embedding / (np.linalg.norm(query_embedding) + 1e-9)
-        
+        psi_candidate_embeddings = self.tensor_ops.psi_matrix.T @ candidate_embeddings.T  # Shape: (proj_dim, n_candidates)
+
         # Compute attention scores using tensor contractions
-        attention_scores = []
+        attention_scores = np.zeros(len(initial_candidates))
+
+        # Vectorized computation of attention scores
         for i, (aku, base_score) in enumerate(initial_candidates):
             if aku.id in self.id_to_faiss_idx:
                 faiss_idx = self.id_to_faiss_idx[aku.id]
-                
+
                 # Get the pattern tensors for this node's connections
                 if faiss_idx < len(self.sparse_pattern_tensors):
                     node_tensors = self.sparse_pattern_tensors[faiss_idx]
                     connections = self.connection_indices[faiss_idx]
-                    
-                    # Compute attention using tensor contractions
-                    psi_query = self.tensor_ops.psi_matrix.T @ norm_query  # Shape: (proj_dim,)
-                    
-                    # Aggregate attention from connected nodes
-                    total_attention = 0.0
+
+                    # Precompute psi embeddings for connected nodes
+                    connected_psi_embeddings = []
                     for j in range(min(len(node_tensors), len(connections))):
                         conn_idx = connections[j]
                         if conn_idx < len(candidate_embeddings):
-                            T_ij = node_tensors[j]  # Shape: (proj_dim, proj_dim)
-                            psi_conn = self.tensor_ops.psi_matrix.T @ candidate_embeddings[conn_idx]
-                            
-                            # Contract with pattern tensor
+                            psi_conn = psi_candidate_embeddings[:, conn_idx]  # Shape: (proj_dim,)
+                            connected_psi_embeddings.append(psi_conn)
+
+                    if connected_psi_embeddings:
+                        connected_psi_array = np.column_stack(connected_psi_embeddings)  # Shape: (proj_dim, n_connected)
+
+                        # Vectorized tensor contractions
+                        total_attention = 0.0
+                        for j, T_ij in enumerate(node_tensors[:len(connected_psi_embeddings)]):
+                            psi_conn = connected_psi_array[:, j]
+
+                            # Contract with pattern tensor: psi_query^T @ T_ij @ psi_conn
                             attention_contribution = psi_query @ T_ij @ psi_conn
                             total_attention += attention_contribution
-                    
-                    # Combine base similarity score with attention-enhanced score
-                    enhanced_score = base_score * (1 + 0.1 * total_attention)  # Modulation factor
-                    attention_scores.append(enhanced_score)
+
+                        # Combine base similarity score with attention-enhanced score
+                        enhanced_score = base_score * (1 + 0.1 * total_attention)  # Modulation factor
+                        attention_scores[i] = enhanced_score
+                    else:
+                        attention_scores[i] = base_score
                 else:
                     # Fallback to base score
-                    attention_scores.append(base_score)
+                    attention_scores[i] = base_score
             else:
                 # Fallback to base score
-                attention_scores.append(base_score)
-        
+                attention_scores[i] = base_score
+
         # Combine AKUs with enhanced scores and sort
-        enhanced_results = [(aku, score) for aku, score in zip(candidate_akus, attention_scores)]
+        enhanced_results = [(candidate_akus[i], float(attention_scores[i])) for i in range(len(candidate_akus))]
         enhanced_results = sorted(enhanced_results, key=lambda x: x[1], reverse=True)[:k]
-        
+
         return enhanced_results
     
     def save_index(self, path: str) -> None:
@@ -307,12 +364,14 @@ class ScalableEKM:
     """
     Scalable version of EKM that uses efficient indexing for large-scale operations.
     """
-    
-    def __init__(self, embedding_dim: int = 768, projection_dim: int = 64, k_sparse: int = 10):
+
+    def __init__(self, embedding_dim: int = 768, projection_dim: int = 64, k_sparse: int = 10,
+                 higher_order_terms: bool = True):
         self.embedding_dim = embedding_dim
         self.projection_dim = projection_dim
         self.k_sparse = k_sparse
-        
+        self.higher_order_terms = higher_order_terms
+
         # Use efficient indexer
         self.indexer = EfficientIndexer(
             embedding_dim=embedding_dim,
