@@ -1,5 +1,0 @@
-full_name,user_email,annual_salary,work_exp,fico_score,requested_credit,loan_type,duration,apr,outcome,justification
-Mark Renton,mark.r@choose.life,35000,2,620,10000,Personal,24,14.5,rejected,Unstable financial history confirmed.
-Sick Boy,simon.w@example.com,65000,6,710,25000,Business,36,8.2,approved,Strong business viability.
-Spud Murphy,daniel.m@example.com,18000,0,500,2000,Personal,12,18.0,rejected,High insolvency risk.
-Begbie Francis,begbie@scotland.uk,90000,15,800,50000,Consolidation,60,5.0,approved,Excellent debt-to-income management.
