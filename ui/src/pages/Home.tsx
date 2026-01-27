@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Button, Chip, Skeleton } from "@heroui/react";
+import { Chip, Skeleton } from "@heroui/react";
 import Card from '../components/Card';
 import client from '../api/client';
 
@@ -49,7 +49,7 @@ export default function Home({ onNavigate }: HomeProps) {
                 <div className="flex gap-3">
                     <motion.button
                         onClick={() => onNavigate('evaluate')}
-                        className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl font-bold text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-300 hover:scale-[1.02]"
+                        className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-800 rounded-xl font-bold text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-300 hover:scale-[1.02]"
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                     >
@@ -195,20 +195,12 @@ export default function Home({ onNavigate }: HomeProps) {
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         {['critical', 'high', 'medium', 'low'].map((level) => {
-                                            const colorClasses = {
-                                                critical: 'bg-red-500/20 border-red-500/30 text-red-300',
-                                                high: 'bg-orange-500/20 border-orange-500/30 text-orange-300',
-                                                medium: 'bg-yellow-500/20 border-yellow-500/30 text-yellow-300',
-                                                low: 'bg-green-500/20 border-green-500/30 text-green-300'
-                                            };
-
                                             return (
                                                 <div key={level} className="flex items-center gap-3 p-3 rounded-lg border bg-slate-800/50 border-slate-700">
-                                                    <span className={`w-3 h-3 rounded-full ${
-                                                        level === 'critical' ? 'bg-red-500' :
+                                                    <span className={`w-3 h-3 rounded-full ${level === 'critical' ? 'bg-red-500' :
                                                         level === 'high' ? 'bg-orange-500' :
-                                                        level === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
-                                                    }`} />
+                                                            level === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
+                                                        }`} />
                                                     <div className="flex-1">
                                                         <span className="text-sm font-bold capitalize text-white">{level}</span>
                                                         <span className="block text-xs text-slate-400">{data?.riskFactors?.analytics?.level_distribution[level] || 0} nodes</span>
@@ -266,7 +258,7 @@ export default function Home({ onNavigate }: HomeProps) {
                                                                 <Chip
                                                                     size="sm"
                                                                     variant="flat"
-                                                                    className={`font-bold text-[10px] h-5 ${levelColors[rf.risk_level as keyof typeof levelColors] || 'bg-slate-700/50 text-slate-300'}`}
+                                                                    className={`font-bold text-[10px] h-5 ${levelColors[rf.risk_level as keyof typeof levelColors] || 'bg-slate-700/50 text-slate-200'}`}
                                                                 >
                                                                     {rf.risk_level.toUpperCase()}
                                                                 </Chip>

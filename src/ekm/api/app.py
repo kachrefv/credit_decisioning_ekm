@@ -114,8 +114,8 @@ async def _ingest_untrained_data(db: Session, full_load: bool = False):
         ) for d in hist_decs
     ]
     
-    # Ingest into memory (Append mode)
-    credit_memory.ingest_credit_data(borrowers, apps, decs)
+    # Ingest into memory (Append mode) - now async with AI extraction
+    await credit_memory.ingest_credit_data(borrowers, apps, decs)
     
     # Mark records as trained in DB
     b_ids = [b.id for b in hist_borrowers]
@@ -170,8 +170,8 @@ async def train(request: TrainAgentRequest, db: Session = Depends(get_db)):
         # Decisions are dicts in the request schema
         repo.save_decision(d)
     
-    # 2. Trigger incremental ingestion of all untrained data (including what we just saved)
-    newly_trained_count = await _ingest_untrained_data(db, full_load=False)
+    # 2. Trigger ingestion of all untrained data (or everything if full_reload)
+    newly_trained_count = await _ingest_untrained_data(db, full_load=request.full_reload)
     
     duration = time.time() - start
     return TrainAgentResponse(
@@ -185,6 +185,7 @@ async def train(request: TrainAgentRequest, db: Session = Depends(get_db)):
 async def train_bulk(
     file: UploadFile = File(...), 
     mapping: str = Form(None), 
+    full_reload: bool = Form(False),
     db: Session = Depends(get_db)
 ):
     """Upload a CSV to bulk ingest historical training data with optional column mapping."""
@@ -267,8 +268,8 @@ async def train_bulk(
             })
             count += 1
             
-        # Trigger incremental ingestion
-        newly_trained_count = await _ingest_untrained_data(db, full_load=False)
+        # Trigger ingestion
+        newly_trained_count = await _ingest_untrained_data(db, full_load=full_reload)
         
         duration = time.time() - start_time
         return TrainAgentResponse(
@@ -294,6 +295,11 @@ async def decide(request: CreditDecisionRequest, db: Session = Depends(get_db)):
     b = to_borrower_model(request.borrower)
     a = to_application_model(request.application)
     decision = await credit_memory.evaluate_credit_application(b, a)
+    
+    # Trigger Post-Decision Feedback Loop: extract insights from AI reasoning
+    if decision.decision != "requires_manual_review":
+        await credit_memory.ingest_decision_insight(decision)
+    
     # Save decision
     repo.save_decision({
         "id": decision.id,
@@ -410,7 +416,7 @@ async def human_decision(request: HumanDecisionRequest, db: Session = Depends(ge
             embedding=app.embedding if app.embedding is not None else np.random.randn(768),
             metadata=request.metadata or {}
         )
-        credit_memory.ingest_credit_data([borrower], [app], [decision])
+        await credit_memory.ingest_credit_data([borrower], [app], [decision])
         
         # Mark as trained
         repo.mark_records_as_trained([borrower.id], [app.id], [decision.id])

@@ -1,24 +1,33 @@
 from typing import List, Dict, Tuple, Optional, Any
 import numpy as np
+import time
 from datetime import datetime
 from .models import BorrowerProfile, LoanApplication, CreditRiskFactor, RiskPattern, CreditDecision
 from .graph import CreditGraphEngine
 from .retrieval import CreditDecisionRetriever
 from .utils import calculate_credit_metrics, assess_borrower_risk_profile, detect_fraud_indicators
+from .embedding_generator import ACUEmbeddingGenerator, TextTemplateEmbeddingGenerator
 from ...infra.deepseek import DeepSeekCreditAgent
 
 class CreditDecisionMemory:
-    def __init__(self, d: int = 768, k: int = 10, mesh_threshold: int = 1000, deepseek_api_key: Optional[str] = None):
+    def __init__(self, d: int = 768, k: int = 10, mesh_threshold: int = 1000, 
+                 deepseek_api_key: Optional[str] = None,
+                 embedding_generator: Optional[ACUEmbeddingGenerator] = None,
+                 enable_ai_extraction: bool = True):
         self.d = d
         self.k = k
         self.mesh_threshold = mesh_threshold
+        self.enable_ai_extraction = enable_ai_extraction
         self.borrowers = []
         self.applications = []
         self.decisions = []
-        self.risk_factors = {} # Changed to dict for uniqueness
+        self.risk_factors = {}  # Changed to dict for uniqueness
         self.graph_engine = CreditGraphEngine(k=k)
         self.retriever = CreditDecisionRetriever(d=d)
         self.mode = "Cold Start"
+        
+        # Initialize embedding generator (fixes Embedding Identity Problem)
+        self.embedding_generator = embedding_generator or TextTemplateEmbeddingGenerator(embedding_dim=d)
 
         try:
             self.deepseek_agent = DeepSeekCreditAgent(api_key=deepseek_api_key)
@@ -26,7 +35,12 @@ class CreditDecisionMemory:
             print(f"Warning: Could not initialize DeepSeek agent: {e}")
             self.deepseek_agent = None
 
-    def ingest_credit_data(self, borrowers: List[BorrowerProfile], applications: List[LoanApplication], decisions: List[CreditDecision]):
+    async def ingest_credit_data(self, borrowers: List[BorrowerProfile], applications: List[LoanApplication], decisions: List[CreditDecision]):
+        """
+        Ingest credit data with enhanced ACU extraction.
+        
+        Now async to support AI-First extraction when enabled.
+        """
         # Use dicts to deduplicate incoming domain models by ID
         existing_borrowers = {b.id: b for b in self.borrowers}
         for b in borrowers:
@@ -43,10 +57,65 @@ class CreditDecisionMemory:
             existing_decs[d.id] = d
         self.decisions = list(existing_decs.values())
         
+        # Extract heuristic-based risk factors
+        print(f"Starting optimized ingestion for {len(applications)} apps. AI Enabled: {self.enable_ai_extraction}")
         for app in applications:
             for rf in self._extract_risk_factors_from_application(app):
                 self.risk_factors[rf.id] = rf
         
+        # AI-First Extraction: Use LLM to find nuanced risks
+        if self.enable_ai_extraction and self.deepseek_agent:
+            print("Starting AI-First extraction...")
+            for app in applications:
+                borrower = next((b for b in self.borrowers if b.id == app.borrower_id), None)
+                if borrower:
+                    ai_factors = await self._extract_ai_risk_factors(borrower, app)
+                    if ai_factors:
+                        print(f"  > AI extracted {len(ai_factors)} factors for {app.id}")
+                    for rf in ai_factors:
+                        self.risk_factors[rf.id] = rf
+
+        for dec in decisions:
+            for rf in self._extract_risk_factors_from_decision(dec):
+                self.risk_factors[rf.id] = rf
+
+            # Reasoning Loop: Feed AI decision insights back into the mesh
+            if self.enable_ai_extraction and self.deepseek_agent:
+                await self.ingest_decision_insight(dec)
+
+        self._check_mode_shift()
+        if self.mode == "Mesh Mode":
+            self.update_mesh()
+    
+    def ingest_credit_data_sync(self, borrowers: List[BorrowerProfile], applications: List[LoanApplication], decisions: List[CreditDecision]):
+        """
+        Synchronous version of ingest_credit_data for backward compatibility.
+        Does not perform AI extraction.
+        """
+        # Use dicts to deduplicate incoming domain models by ID
+        existing_borrowers = {b.id: b for b in self.borrowers}
+        for b in borrowers:
+            existing_borrowers[b.id] = b
+        self.borrowers = list(existing_borrowers.values())
+
+        existing_apps = {a.id: a for a in self.applications}
+        for a in applications:
+            existing_apps[a.id] = a
+        self.applications = list(existing_apps.values())
+
+        existing_decs = {d.id: d for d in self.decisions}
+        for d in decisions:
+            existing_decs[d.id] = d
+        self.decisions = list(existing_decs.values())
+        
+        # Note: The sync method doesn't perform AI extraction to maintain backward compatibility
+        # For AI extraction, use the async ingest_credit_data method
+
+        # Process decisions only (without heuristic extraction)
+        for app in applications:
+            for rf in self._extract_risk_factors_from_application(app):
+                self.risk_factors[rf.id] = rf
+
         for dec in decisions:
             for rf in self._extract_risk_factors_from_decision(dec):
                 self.risk_factors[rf.id] = rf
@@ -55,42 +124,276 @@ class CreditDecisionMemory:
         if self.mode == "Mesh Mode":
             self.update_mesh()
 
+    
     def _extract_risk_factors_from_application(self, application: LoanApplication) -> List[CreditRiskFactor]:
+        """
+        Extract heuristic-based risk factors with unique embeddings.
+        
+        Uses content-based IDs to prevent redundant ACUs across applications.
+        """
         risk_factors = []
         borrower = next((b for b in self.borrowers if b.id == application.borrower_id), None)
-        if not borrower: return risk_factors
+        if not borrower:
+            return risk_factors
             
         factors = []
-        if borrower.credit_score < 600: factors.append(("low_credit_score", "high"))
-        elif borrower.credit_score < 700: factors.append(("medium_credit_score", "medium"))
-        else: factors.append(("good_credit_score", "low"))
+        if borrower.credit_score < 600:
+            factors.append(("low_credit_score", "high"))
+        elif borrower.credit_score < 700:
+            factors.append(("medium_credit_score", "medium"))
+        else:
+            factors.append(("good_credit_score", "low"))
             
-        if borrower.debt_to_income_ratio > 0.43: factors.append(("high_debt_to_income", "high"))
-        elif borrower.debt_to_income_ratio > 0.36: factors.append(("medium_debt_to_income", "medium"))
-        else: factors.append(("low_debt_to_income", "low"))
+        if borrower.debt_to_income_ratio > 0.43:
+            factors.append(("high_debt_to_income", "high"))
+        elif borrower.debt_to_income_ratio > 0.36:
+            factors.append(("medium_debt_to_income", "medium"))
+        else:
+            factors.append(("low_debt_to_income", "low"))
             
-        for i, (f_desc, r_lvl) in enumerate(factors):
+        # Extract direct risk factors from borrower metadata
+        if borrower.metadata:
+            for key, value in borrower.metadata.items():
+                if key in ["timestamp", "source", "borrower_risk_profile"]:
+                    continue
+                safe_key = key.replace(" ", "_").lower()
+                safe_value = str(value).replace(" ", "_").lower()
+                factors.append((f"{safe_key}_{safe_value}", "medium"))
+            
+        for f_desc, r_lvl in factors:
+            content_id = f"rf_{f_desc}_{r_lvl}"
+            metadata = {
+                "timestamp": application.timestamp, 
+                "borrower_id": application.borrower_id,
+                "source": "heuristic_extraction",
+            }
+            
+            if content_id in self.risk_factors:
+                existing = self.risk_factors[content_id]
+                if application.id not in existing.source_application_ids:
+                    existing.source_application_ids.append(application.id)
+                continue
+            
+            embedding = self.embedding_generator.generate(f_desc, r_lvl, metadata)
             rf = CreditRiskFactor(
-                id=f"rf_{application.id}_{i}",
+                id=content_id,
                 risk_factor=f_desc,
                 risk_level=r_lvl,
                 source_application_ids=[application.id],
-                embedding=application.embedding if application.embedding is not None else np.random.randn(self.d),
-                metadata={"timestamp": application.timestamp, "borrower_id": application.borrower_id}
+                embedding=embedding,
+                metadata=metadata
             )
             risk_factors.append(rf)
         return risk_factors
 
+    async def _extract_ai_risk_factors(self, borrower: BorrowerProfile, application: LoanApplication) -> List[CreditRiskFactor]:
+        """
+        Use AI to extract nuanced risk factors from unstructured data.
+        
+        This implements AI-First Extraction, identifying risks that heuristics miss.
+        """
+        if not self.deepseek_agent:
+            return []
+            
+        try:
+            ai_factors = await self.deepseek_agent.extract_risk_factors(borrower, application)
+            
+            risk_factors = []
+            for i, factor_data in enumerate(ai_factors):
+                f_desc = factor_data.get("risk_factor", "unknown_risk")
+                r_lvl = factor_data.get("risk_level", "medium")
+                reasoning = factor_data.get("reasoning", "")
+                
+                metadata = {
+                    "timestamp": time.time(),
+                    "borrower_id": borrower.id,
+                    "source": "ai_extraction",
+                    "reasoning": reasoning
+                }
+                
+                content_id = f"rf_{f_desc}_{r_lvl}"
+                
+                # Check for existence to consolidate
+                if content_id in self.risk_factors:
+                    existing = self.risk_factors[content_id]
+                    if application.id not in existing.source_application_ids:
+                        existing.source_application_ids.append(application.id)
+                    # Merge metadata if needed, or just keep first
+                    continue
+                
+                embedding = self.embedding_generator.generate(f_desc, r_lvl, metadata)
+                
+                rf = CreditRiskFactor(
+                    id=content_id,
+                    risk_factor=f_desc,
+                    risk_level=r_lvl,
+                    source_application_ids=[application.id],
+                    embedding=embedding,
+                    metadata=metadata
+                )
+                risk_factors.append(rf)
+            
+            return risk_factors
+        except Exception as e:
+            print(f"AI Risk Extraction failed: {e}")
+            return []
+    
+    async def ingest_decision_insight(self, decision: CreditDecision):
+        """
+        Parse the AI's decision reasoning and feed insights back into the mesh.
+        
+        This closes the Reasoning Loop by extracting structured ACUs from
+        free-text decision explanations.
+        """
+        if not self.deepseek_agent or not decision.reason:
+            return []
+            
+        try:
+            parsed_factors = await self.deepseek_agent.parse_decision_reason(decision.reason)
+            
+            new_factors = []
+            for i, factor_data in enumerate(parsed_factors):
+                f_desc = factor_data.get("risk_factor", "unknown_insight")
+                r_lvl = factor_data.get("risk_level", "medium")
+                
+                metadata = {
+                    "timestamp": time.time(),
+                    "source": "decision_insight",
+                    "decision_id": decision.id,
+                    "original_reason": decision.reason[:200]  # Truncate for storage
+                }
+                
+                content_id = f"rf_{f_desc}_{r_lvl}"
+                
+                # Check for existence to consolidate
+                if content_id in self.risk_factors:
+                    existing = self.risk_factors[content_id]
+                    if decision.application_id not in existing.source_application_ids:
+                        existing.source_application_ids.append(decision.application_id)
+                    continue
+
+                embedding = self.embedding_generator.generate(f_desc, r_lvl, metadata)
+                
+                rf = CreditRiskFactor(
+                    id=content_id,
+                    risk_factor=f_desc,
+                    risk_level=r_lvl,
+                    source_application_ids=[decision.application_id],
+                    embedding=embedding,
+                    metadata=metadata
+                )
+                self.risk_factors[rf.id] = rf
+                new_factors.append(rf)
+            
+            # Update mesh if we added new factors
+            if new_factors and self.mode == "Mesh Mode":
+                self.update_mesh()
+                
+            return new_factors
+        except Exception as e:
+            print(f"Decision Insight Ingestion failed: {e}")
+            return []
+
     def _extract_risk_factors_from_decision(self, decision: CreditDecision) -> List[CreditRiskFactor]:
+        """
+        Extract risk factors from decision outcomes AND expert notes.
+        
+        Uses content-based IDs to prevent redundancy.
+        """
+        risk_factors = []
+        
+        # 1. Extract from decision outcome
         risk_level = "low" if decision.decision == "approved" else "high" if decision.decision == "rejected" else "medium"
-        return [CreditRiskFactor(
-            id=f"rf_decision_{decision.id}",
-            risk_factor=f"decision_outcome_{decision.decision}",
-            risk_level=risk_level,
-            source_application_ids=[decision.application_id],
-            embedding=decision.embedding if decision.embedding is not None else np.random.randn(self.d),
-            metadata={"timestamp": decision.timestamp, "risk_score": decision.risk_score}
-        )]
+        outcome_id = f"rf_outcome_{decision.decision}"
+        
+        if outcome_id not in self.risk_factors:
+            embedding = self.embedding_generator.generate(
+                f"decision_outcome_{decision.decision}", 
+                risk_level, 
+                {"source": "decision_outcome"}
+            )
+            rf = CreditRiskFactor(
+                id=outcome_id,
+                risk_factor=f"decision_outcome_{decision.decision}",
+                risk_level=risk_level,
+                source_application_ids=[decision.application_id],
+                embedding=embedding,
+                metadata={"timestamp": decision.timestamp, "risk_score": decision.risk_score, "source": "decision_outcome"}
+            )
+            risk_factors.append(rf)
+        else:
+            # Update existing
+            existing = self.risk_factors[outcome_id]
+            if decision.application_id not in existing.source_application_ids:
+                existing.source_application_ids.append(decision.application_id)
+        
+        # 2. Extract from expert notes (NEW: closes the expert knowledge loop)
+        if decision.expert_notes and len(decision.expert_notes) > 10:
+            # Parse expert notes into key phrases/factors
+            expert_factors = self._parse_expert_notes(decision.expert_notes)
+            
+            for i, (factor_desc, factor_level) in enumerate(expert_factors):
+                # Use content-based ID
+                expert_id = f"rf_expert_{factor_desc.replace(' ', '_').lower()}"
+                
+                if expert_id not in self.risk_factors:
+                    embedding = self.embedding_generator.generate(factor_desc, factor_level, {"source": "expert_notes"})
+                    rf = CreditRiskFactor(
+                        id=expert_id,
+                        risk_factor=factor_desc,
+                        risk_level=factor_level,
+                        source_application_ids=[decision.application_id],
+                        embedding=embedding,
+                        metadata={
+                            "timestamp": decision.timestamp,
+                            "source": "expert_notes",
+                            "original_note": decision.expert_notes[:200]
+                        }
+                    )
+                    risk_factors.append(rf)
+                else:
+                    existing = self.risk_factors[expert_id]
+                    if decision.application_id not in existing.source_application_ids:
+                        existing.source_application_ids.append(decision.application_id)
+        
+        return risk_factors
+    
+    def _parse_expert_notes(self, notes: str) -> List[tuple]:
+        """
+        Parse expert notes into structured risk factors using keyword matching.
+        
+        This is a lightweight heuristic parser. For more sophisticated parsing,
+        the AI-based ingest_decision_insight method should be used.
+        """
+        factors = []
+        notes_lower = notes.lower()
+        
+        # Risk keyword patterns and their implications
+        risk_patterns = [
+            ("insufficient collateral", "insufficient_collateral", "high"),
+            ("collateral concern", "collateral_concern", "medium"),
+            ("income verification", "income_verification_issue", "medium"),
+            ("unstable employment", "unstable_employment", "high"),
+            ("employment history", "employment_history_concern", "medium"),
+            ("high debt", "high_debt_burden", "high"),
+            ("debt concern", "debt_concern", "medium"),
+            ("fraud", "fraud_indicator", "critical"),
+            ("suspicious", "suspicious_activity", "high"),
+            ("inconsistent", "data_inconsistency", "medium"),
+            ("bankruptcy", "bankruptcy_history", "critical"),
+            ("delinquent", "delinquency_history", "high"),
+            ("late payment", "late_payment_history", "medium"),
+            ("strong credit", "strong_credit_history", "low"),
+            ("excellent history", "excellent_payment_history", "low"),
+            ("stable income", "stable_income", "low"),
+            ("verified income", "verified_income", "low"),
+        ]
+        
+        for pattern, factor_name, level in risk_patterns:
+            if pattern in notes_lower:
+                factors.append((factor_name, level))
+        
+        return factors
 
     def _check_mode_shift(self):
         factors_list = list(self.risk_factors.values())

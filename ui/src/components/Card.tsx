@@ -8,13 +8,18 @@ interface CardProps {
   gradient?: boolean;
 }
 
-const Card: React.FC<CardProps> = ({ children, className = '', elevated = true, gradient = false }) => {
+interface CardComponent extends React.FC<CardProps> {
+  Header: React.FC<CardHeaderProps>;
+  Body: React.FC<CardBodyProps>;
+}
+
+const Card: CardComponent = ({ children, className = '', elevated = true, gradient = false }) => {
   return (
     <motion.div
       className={`
         rounded-2xl border
-        ${gradient 
-          ? 'bg-gradient-to-br from-slate-800/50 to-slate-900/50 border-slate-700/50' 
+        ${gradient
+          ? 'bg-gradient-to-br from-slate-800/50 to-slate-900/50 border-slate-700/50'
           : 'bg-slate-800/30 border-slate-700/30'}
         ${elevated ? 'shadow-xl shadow-slate-900/20' : ''}
         backdrop-blur-sm

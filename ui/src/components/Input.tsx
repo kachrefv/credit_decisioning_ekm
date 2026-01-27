@@ -10,19 +10,19 @@ interface InputProps {
   disabled?: boolean;
 }
 
-const Input: React.FC<InputProps> = ({ 
-  label, 
-  placeholder, 
-  value, 
-  onChange, 
-  type = 'text', 
-  className = '', 
-  disabled = false 
+const Input: React.FC<InputProps> = ({
+  label,
+  placeholder,
+  value,
+  onChange,
+  type = 'text',
+  className = '',
+  disabled = false
 }) => {
   return (
     <div className="space-y-2 w-full">
       {label && (
-        <label className="text-sm font-bold text-slate-300 uppercase tracking-wider">
+        <label className="text-sm font-bold text-slate-200 uppercase tracking-wider">
           {label}
         </label>
       )}

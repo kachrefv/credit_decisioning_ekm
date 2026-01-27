@@ -303,7 +303,7 @@ export default function Training() {
                                         color="primary"
                                         isStriped
                                         classNames={{
-                                            indicator: "bg-gradient-to-r from-primary to-indigo-600",
+                                            indicator: "bg-gradient-to-r from-primary to-blue-700",
                                             track: "bg-default-100"
                                         }}
                                     />
@@ -382,7 +382,7 @@ export default function Training() {
                         </div>
                     </Card>
 
-                    <Card className="border-none shadow-xl rounded-[2.5rem] bg-gradient-to-br from-indigo-900 to-purple-900 text-white overflow-hidden">
+                    <Card className="border-none shadow-xl rounded-[2.5rem] bg-gradient-to-br from-blue-900 to-slate-900 text-white overflow-hidden">
                         <CardHeader className="p-8 pb-4">
                             <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Memory Optimization</span>
                         </CardHeader>

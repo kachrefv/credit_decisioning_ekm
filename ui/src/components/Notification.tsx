@@ -8,19 +8,19 @@ interface NotificationProps {
   onClose?: () => void;
 }
 
-const Notification: React.FC<NotificationProps> = ({ 
-  message, 
-  type = 'info', 
-  duration = 5000, 
-  onClose 
+const Notification: React.FC<NotificationProps> = ({
+  message,
+  type = 'info',
+  duration = 5000,
+  onClose
 }) => {
   const [isVisible, setIsVisible] = useState(true);
-  
+
   const typeStyles = {
     success: 'bg-gradient-to-r from-green-600/90 to-emerald-600/90 border border-green-500/30',
     error: 'bg-gradient-to-r from-red-600/90 to-rose-600/90 border border-red-500/30',
     warning: 'bg-gradient-to-r from-amber-600/90 to-orange-600/90 border border-amber-500/30',
-    info: 'bg-gradient-to-r from-blue-600/90 to-indigo-600/90 border border-blue-500/30'
+    info: 'bg-gradient-to-r from-blue-600/90 to-blue-700/90 border border-blue-500/30'
   };
 
   useEffect(() => {
@@ -50,7 +50,7 @@ const Notification: React.FC<NotificationProps> = ({
         >
           <div className="flex items-start justify-between">
             <p className="text-sm font-medium">{message}</p>
-            <button 
+            <button
               onClick={handleClose}
               className="ml-4 text-white/70 hover:text-white transition-colors"
             >

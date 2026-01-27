@@ -102,3 +102,138 @@ class DeepSeekCreditAgent:
                 reason=f"AI System Error: {str(e)}", 
                 similar_cases=[]
             )
+
+    async def extract_risk_factors(self, borrower: BorrowerProfile, application: LoanApplication) -> List[Dict[str, Any]]:
+        """
+        Use AI to extract nuanced risk factors from unstructured application data.
+        
+        This enables "AI-First Extraction" by identifying risks that heuristics cannot catch,
+        such as industry-specific concerns or unusual loan purposes.
+        
+        Args:
+            borrower: The borrower profile.
+            application: The loan application with unstructured fields like loan_purpose.
+            
+        Returns:
+            A list of dicts, each with "risk_factor" (str) and "risk_level" (str).
+        """
+        system_prompt = (
+            "You are an expert Credit Risk Analyst. Your task is to identify potential risk factors "
+            "from credit application data. Focus on nuances that simple rules might miss, such as: "
+            "industry volatility, unusual loan purposes, income-to-loan mismatches, or employment instability signals."
+        )
+        
+        user_prompt = f"""Analyze the following loan application and identify any notable risk factors.
+
+Borrower Details:
+- Name: {borrower.name}
+- Credit Score: {borrower.credit_score}
+- Annual Income: ${borrower.income:,.2f}
+- Employment Years: {borrower.employment_years}
+- Debt-to-Income Ratio: {borrower.debt_to_income_ratio:.2%}
+
+Borrower Context / Metadata:
+{self._format_metadata(borrower.metadata)}
+
+Loan Application:
+- Loan Amount: ${application.loan_amount:,.2f}
+- Loan Purpose: {application.loan_purpose}
+- Term: {application.term_months} months
+- Interest Rate: {application.interest_rate}%
+
+Return a JSON object with a single key "risk_factors" containing a list of objects.
+Each object should have:
+- "risk_factor": A snake_case identifier (e.g., "high_loan_to_income_ratio", "volatile_industry_sector")
+- "risk_level": One of "low", "medium", "high", "critical"
+- "reasoning": A brief explanation (one sentence)
+
+Example: {{"risk_factors": [{{"risk_factor": "stated_purpose_ambiguity", "risk_level": "medium", "reasoning": "Loan purpose is vague and could indicate hidden intent."}}]}}
+If no specific risks are found beyond standard metrics, return an empty list."""
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.3
+            )
+            
+            content = response.choices[0].message.content
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0].strip()
+            
+            data = json.loads(content)
+            return data.get("risk_factors", [])
+        except Exception as e:
+            print(f"DeepSeek Risk Extraction Error: {e}")
+            return []
+
+    async def parse_decision_reason(self, reason: str) -> List[Dict[str, Any]]:
+        """
+        Parse an AI decision's reasoning to extract structured risk factors.
+        
+        This closes the "Reasoning Loop" by feeding insights from decisions
+        back into the knowledge mesh as new ACUs.
+        
+        Args:
+            reason: The free-text reasoning from a CreditDecision.
+            
+        Returns:
+            A list of dicts, each with "risk_factor" (str) and "risk_level" (str).
+        """
+        if not reason or len(reason) < 20:
+            return []
+            
+        system_prompt = (
+            "You are a data extraction assistant. Your task is to parse a credit decision "
+            "explanation and extract the specific risk factors mentioned."
+        )
+        
+        user_prompt = f"""Extract risk factors from this credit decision reasoning:
+
+"{reason}"
+
+Return a JSON object with a single key "risk_factors" containing a list of objects.
+Each object should have:
+- "risk_factor": A snake_case identifier representing the risk (e.g., "insufficient_collateral", "short_employment_history")
+- "risk_level": One of "low", "medium", "high", "critical"
+
+Only extract explicitly mentioned risks. If no clear risks are mentioned, return an empty list."""
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.1
+            )
+            
+            content = response.choices[0].message.content
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0].strip()
+            
+            data = json.loads(content)
+            return data.get("risk_factors", [])
+        except Exception as e:
+            print(f"DeepSeek Reason Parsing Error: {e}")
+            return []
+
+    def _format_metadata(self, metadata: Dict[str, Any]) -> str:
+        """Helper to format metadata dict into a readable string for the prompt."""
+        if not metadata:
+            return "None provided"
+        
+        lines = []
+        for k, v in metadata.items():
+            # Skip likely internal or irrelevant keys
+            if k in ["timestamp", "source", "embedding", "id", "reasoning"]:
+                continue
+            lines.append(f"- {k}: {v}")
+            
+        return "\n".join(lines) if lines else "None provided"

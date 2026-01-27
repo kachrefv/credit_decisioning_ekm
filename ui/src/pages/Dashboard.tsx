@@ -12,7 +12,7 @@ interface DashboardProps {
 
 export default function Dashboard({ onLogout, onNavigate, children, currentView }: DashboardProps) {
     return (
-        <div className="flex min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-foreground font-sans overflow-hidden">
+        <div className="flex min-h-screen bg-slate-950 text-foreground font-sans overflow-hidden">
             {/* Desktop Sidebar */}
             <Sidebar
                 currentView={currentView || 'dashboard'}

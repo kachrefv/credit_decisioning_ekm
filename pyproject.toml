@@ -14,7 +14,10 @@ dependencies = [
     "python-dotenv",
     "python-jose[cryptography]",
     "sqlalchemy",
-    "sentence-transformers"
+    "sentence-transformers",
+    "passlib[bcrypt]",
+    "requests",
+    "python-multipart"
 ]
 
 [tool.setuptools]

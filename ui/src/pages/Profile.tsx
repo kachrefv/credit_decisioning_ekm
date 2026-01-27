@@ -142,6 +142,7 @@ const Profile = () => {
                                         variant="bordered"
                                         value={editName}
                                         onValueChange={setEditName}
+                                        classNames={{ label: "text-slate-200 font-medium pb-1" }}
                                     />
                                     <Input
                                         label="Email"
@@ -149,6 +150,7 @@ const Profile = () => {
                                         variant="bordered"
                                         value={editEmail}
                                         onValueChange={setEditEmail}
+                                        classNames={{ label: "text-slate-200 font-medium pb-1" }}
                                     />
                                     <Input
                                         label="Profile Picture URL"
@@ -156,6 +158,7 @@ const Profile = () => {
                                         variant="bordered"
                                         value={editPicture}
                                         onValueChange={setEditPicture}
+                                        classNames={{ label: "text-slate-200 font-medium pb-1" }}
                                     />
                                     <Input
                                         label="New Password"
@@ -164,6 +167,7 @@ const Profile = () => {
                                         variant="bordered"
                                         value={editPassword}
                                         onValueChange={setEditPassword}
+                                        classNames={{ label: "text-slate-200 font-medium pb-1" }}
                                     />
                                 </ModalBody>
                                 <ModalFooter>

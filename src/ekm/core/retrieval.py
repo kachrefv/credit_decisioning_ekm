@@ -25,7 +25,7 @@ class EKMRetriever:
         if not qdrant_url or not qdrant_api_key:
             raise ValueError("QDRANT_URL and QDRANT_API_KEY must be set in configuration")
 
-        self.client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key, timeout=120)
+        self.client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key, timeout=300)
 
         self._ensure_collection()
         self.akus_map = {}
@@ -65,7 +65,7 @@ class EKMRetriever:
         import time
         self.akus_map = {aku.id: aku for aku in akus}
 
-        batch_size = 100
+        batch_size = 20
         for i in range(0, len(akus), batch_size):
             batch = akus[i:i + batch_size]
             points = []

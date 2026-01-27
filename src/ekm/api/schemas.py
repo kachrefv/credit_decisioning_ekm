@@ -35,6 +35,7 @@ class TrainAgentRequest(BaseModel):
     borrowers: List[BorrowerRequest]
     applications: List[LoanApplicationRequest]
     decisions: List[Dict[str, Any]]
+    full_reload: bool = False
 
 class CreditDecisionResponse(BaseModel):
     id: str

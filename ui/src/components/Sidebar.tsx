@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  DashboardIcon, 
-  EvaluateIcon, 
-  DecisionsIcon, 
-  TrainingIcon, 
-  BorrowersIcon, 
-  RiskIcon, 
-  SettingsIcon, 
-  LogoutIcon 
+import {
+  DashboardIcon,
+  EvaluateIcon,
+  DecisionsIcon,
+  TrainingIcon,
+  BorrowersIcon,
+  RiskIcon,
+  SettingsIcon,
+  LogoutIcon
 } from './Icons';
 
 interface SidebarProps {
@@ -47,7 +47,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onLogout }) 
         {menuItems.map((item) => {
           const IconComponent = item.icon;
           const isActive = currentView === item.view;
-          
+
           return (
             <motion.button
               key={item.view}
@@ -56,42 +56,42 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onLogout }) 
               onMouseLeave={() => setHoveredItem(null)}
               className={`
                 w-full flex items-center px-4 py-3 rounded-xl transition-all duration-300 group relative overflow-hidden
-                ${isActive 
-                  ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-300 shadow-lg shadow-blue-500/10' 
+                ${isActive
+                  ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-300 shadow-lg shadow-blue-500/10'
                   : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'}
               `}
               whileHover={{ x: 4 }}
               whileTap={{ scale: 0.98 }}
             >
               <motion.div
-                animate={{ 
+                animate={{
                   scale: hoveredItem === item.view ? 1.2 : 1,
                   rotate: hoveredItem === item.view ? 5 : 0
                 }}
                 transition={{ type: "spring", stiffness: 400, damping: 17 }}
               >
-                <IconComponent 
-                  className={`${isActive ? 'text-blue-300' : 'text-slate-400 group-hover:text-white'}`} 
-                  size="md" 
+                <IconComponent
+                  className={`${isActive ? 'text-blue-300' : 'text-slate-400 group-hover:text-white'}`}
+                  size="md"
                 />
               </motion.div>
-              
-              <motion.span 
-                className={`ml-3 font-semibold text-sm ${isActive ? 'text-blue-300' : 'text-slate-300 group-hover:text-white'}`}
+
+              <motion.span
+                className={`ml-3 font-semibold text-sm ${isActive ? 'text-blue-300' : 'text-slate-200 group-hover:text-white'}`}
                 animate={{ x: hoveredItem === item.view ? 4 : 0 }}
               >
                 {item.label}
               </motion.span>
-              
+
               {isActive && (
-                <motion.div 
+                <motion.div
                   className="absolute right-3 w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]"
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ delay: 0.2 }}
                 ></motion.div>
               )}
-              
+
               <AnimatePresence>
                 {hoveredItem === item.view && !isActive && (
                   <motion.div
@@ -119,14 +119,14 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, onLogout }) 
             </div>
           </div>
           <div className="h-2 w-full bg-slate-700 rounded-full overflow-hidden">
-            <motion.div 
+            <motion.div
               className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full"
               initial={{ width: "0%" }}
               animate={{ width: "85%" }}
               transition={{ duration: 1, ease: "easeOut" }}
             ></motion.div>
           </div>
-          
+
           <motion.button
             onClick={onLogout}
             className="mt-4 w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-300 text-sm font-medium transition-colors"

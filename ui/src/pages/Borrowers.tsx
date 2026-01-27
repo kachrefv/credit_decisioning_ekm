@@ -44,8 +44,13 @@ export default function Borrowers() {
         debt_to_income_ratio: '0.3',
         address: '',
         phone: '',
-        email: ''
+        email: '',
+        metadata: {} as Record<string, string>
     });
+
+    // For the dynamic metadata key-value editor
+    const [newMetaKey, setNewMetaKey] = useState('');
+    const [newMetaValue, setNewMetaValue] = useState('');
 
     const fetchData = async () => {
         setLoading(true);
@@ -83,8 +88,11 @@ export default function Borrowers() {
             debt_to_income_ratio: '0.3',
             address: '',
             phone: '',
-            email: ''
+            email: '',
+            metadata: {}
         });
+        setNewMetaKey('');
+        setNewMetaValue('');
         onFormOpen();
     };
 
@@ -99,9 +107,32 @@ export default function Borrowers() {
             debt_to_income_ratio: borrower.debt_to_income_ratio.toString(),
             address: borrower.address || '',
             phone: borrower.phone || '',
-            email: borrower.email
+            email: borrower.email,
+            metadata: borrower.metadata || borrower.extra_metadata || {}
         });
+        setNewMetaKey('');
+        setNewMetaValue('');
         onFormOpen();
+    };
+
+    const handleAddMetadata = () => {
+        if (newMetaKey.trim() && newMetaValue.trim()) {
+            setFormState({
+                ...formState,
+                metadata: {
+                    ...formState.metadata,
+                    [newMetaKey.trim()]: newMetaValue.trim()
+                }
+            });
+            setNewMetaKey('');
+            setNewMetaValue('');
+        }
+    };
+
+    const handleRemoveMetadata = (key: string) => {
+        const updated = { ...formState.metadata };
+        delete updated[key];
+        setFormState({ ...formState, metadata: updated });
     };
 
     const handleSubmit = async () => {
@@ -112,7 +143,8 @@ export default function Borrowers() {
                 credit_score: parseInt(formState.credit_score),
                 income: parseFloat(formState.income),
                 employment_years: parseFloat(formState.employment_years),
-                debt_to_income_ratio: parseFloat(formState.debt_to_income_ratio)
+                debt_to_income_ratio: parseFloat(formState.debt_to_income_ratio),
+                metadata: formState.metadata
             };
 
             if (isEditMode) {
@@ -360,7 +392,7 @@ export default function Borrowers() {
                                             </div>
 
                                             <div className="md:col-span-5 flex flex-col gap-6">
-                                                <Card className="bg-gradient-to-br from-primary-600 to-indigo-700 text-white border-none rounded-[2rem] p-8 shadow-2xl shadow-primary/30 relative overflow-hidden">
+                                                <Card className="bg-gradient-to-br from-primary-600 to-blue-900 text-white border-none rounded-[2rem] p-8 shadow-2xl shadow-primary/30 relative overflow-hidden">
                                                     <div className="absolute top-[-40px] right-[-40px] w-48 h-48 bg-white/10 rounded-full blur-3xl transition-transform hover:scale-110 duration-1000"></div>
                                                     <h4 className="text-[10px] font-black uppercase mb-8 tracking-[0.2em] opacity-60">Financial Standing</h4>
                                                     <div className="flex flex-col gap-8">
@@ -479,7 +511,7 @@ export default function Borrowers() {
                                         onValueChange={(v: string) => setFormState({ ...formState, name: v })}
                                         variant="bordered"
                                         size="lg"
-                                        classNames={{ input: "font-bold" }}
+                                        classNames={{ input: "font-bold", label: "text-slate-200 font-medium pb-1" }}
                                     />
                                     <Input
                                         label="Secure Email"
@@ -490,7 +522,7 @@ export default function Borrowers() {
                                         onValueChange={(v: string) => setFormState({ ...formState, email: v })}
                                         variant="bordered"
                                         size="lg"
-                                        classNames={{ input: "font-bold" }}
+                                        classNames={{ input: "font-bold", label: "text-slate-200 font-medium pb-1" }}
                                     />
                                 </div>
                                 <div className="grid grid-cols-2 gap-6">
@@ -502,7 +534,7 @@ export default function Borrowers() {
                                         onValueChange={(v: string) => setFormState({ ...formState, credit_score: v })}
                                         variant="bordered"
                                         size="lg"
-                                        classNames={{ input: "font-bold" }}
+                                        classNames={{ input: "font-bold", label: "text-slate-200 font-medium pb-1" }}
                                     />
                                     <Input
                                         label="Annual Revenue ($)"
@@ -512,7 +544,7 @@ export default function Borrowers() {
                                         onValueChange={(v: string) => setFormState({ ...formState, income: v })}
                                         variant="bordered"
                                         size="lg"
-                                        classNames={{ input: "font-bold" }}
+                                        classNames={{ input: "font-bold", label: "text-slate-200 font-medium pb-1" }}
                                     />
                                 </div>
                                 <div className="grid grid-cols-2 gap-6">
@@ -525,7 +557,7 @@ export default function Borrowers() {
                                         onValueChange={(v: string) => setFormState({ ...formState, debt_to_income_ratio: v })}
                                         variant="bordered"
                                         size="lg"
-                                        classNames={{ input: "font-bold" }}
+                                        classNames={{ input: "font-bold", label: "text-slate-200 font-medium pb-1" }}
                                     />
                                     <Input
                                         label="Years in Network"
@@ -535,7 +567,7 @@ export default function Borrowers() {
                                         onValueChange={(v: string) => setFormState({ ...formState, employment_years: v })}
                                         variant="bordered"
                                         size="lg"
-                                        classNames={{ input: "font-bold" }}
+                                        classNames={{ input: "font-bold", label: "text-slate-200 font-medium pb-1" }}
                                     />
                                 </div>
                                 <Textarea
@@ -548,6 +580,70 @@ export default function Borrowers() {
                                     size="lg"
                                     classNames={{ input: "font-medium italic" }}
                                 />
+
+                                {/* Context Metadata Editor */}
+                                <div className="flex flex-col gap-4 mt-4">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-bold text-slate-200">Context Metadata</span>
+                                        <span className="text-[10px] font-medium text-default-400 uppercase tracking-wider">Custom Key-Value Pairs</span>
+                                    </div>
+
+                                    {/* Existing metadata display */}
+                                    {Object.keys(formState.metadata).length > 0 && (
+                                        <div className="flex flex-col gap-2">
+                                            {Object.entries(formState.metadata).map(([key, value]) => (
+                                                <div key={key} className="flex items-center gap-2 p-3 bg-default-50 rounded-xl border border-default-100">
+                                                    <span className="text-xs font-bold text-primary min-w-[80px]">{key}</span>
+                                                    <span className="text-xs text-default-600 flex-1 truncate">{value}</span>
+                                                    <Button
+                                                        isIconOnly
+                                                        size="sm"
+                                                        variant="light"
+                                                        color="danger"
+                                                        onPress={() => handleRemoveMetadata(key)}
+                                                        className="h-6 w-6 min-w-6"
+                                                    >
+                                                        ✕
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Add new metadata */}
+                                    <div className="flex gap-2">
+                                        <Input
+                                            placeholder="Key (e.g. industry)"
+                                            value={newMetaKey}
+                                            onValueChange={setNewMetaKey}
+                                            variant="bordered"
+                                            size="sm"
+                                            classNames={{ input: "font-medium", base: "flex-1" }}
+                                        />
+                                        <Input
+                                            placeholder="Value (e.g. technology)"
+                                            value={newMetaValue}
+                                            onValueChange={setNewMetaValue}
+                                            variant="bordered"
+                                            size="sm"
+                                            classNames={{ input: "font-medium", base: "flex-[2]" }}
+                                        />
+                                        <Button
+                                            color="primary"
+                                            variant="flat"
+                                            size="sm"
+                                            onPress={handleAddMetadata}
+                                            className="font-bold px-4"
+                                            isDisabled={!newMetaKey.trim() || !newMetaValue.trim()}
+                                        >
+                                            Add
+                                        </Button>
+                                    </div>
+
+                                    <p className="text-[10px] text-default-400 italic">
+                                        Add custom context like industry, risk_notes, special_conditions, etc. This metadata enriches ACU extraction.
+                                    </p>
+                                </div>
                             </ModalBody>
                             <ModalFooter className="flex gap-4">
                                 <Button color="default" variant="light" onPress={onClose} className="font-bold flex-1 h-12 rounded-2xl">

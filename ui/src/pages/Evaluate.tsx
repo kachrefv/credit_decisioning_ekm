@@ -1,14 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-    Input,
     Textarea,
-    Select,
-    SelectItem,
     Tooltip
 } from "@heroui/react";
 import Card from '../components/Card';
-import Button from '../components/Button';
 import { LoadingOverlay } from '../components/Loading';
 import client from '../api/client';
 
@@ -131,13 +127,12 @@ export default function Evaluate() {
             {[0, 1, 2].map((s) => (
                 <motion.div
                     key={s}
-                    className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 shadow-lg ${
-                        step === s
-                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white scale-110 shadow-blue-500/30'
-                            : step > s
-                                ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white'
-                                : 'bg-slate-700 text-slate-400'
-                    }`}
+                    className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 shadow-lg ${step === s
+                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white scale-110 shadow-blue-500/30'
+                        : step > s
+                            ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white'
+                            : 'bg-slate-700 text-slate-400'
+                        }`}
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     transition={{ delay: s * 0.1 }}
@@ -148,12 +143,6 @@ export default function Evaluate() {
             ))}
         </div>
     );
-
-    const getRiskColor = (score: number) => {
-        if (score < 0.3) return "from-green-500 to-emerald-500";
-        if (score < 0.7) return "from-yellow-500 to-amber-500";
-        return "from-red-500 to-rose-500";
-    };
 
     return (
         <div className="flex flex-col gap-8 max-w-6xl mx-auto p-4 animate-in fade-in duration-700">
@@ -186,7 +175,7 @@ export default function Evaluate() {
                             </Card.Header>
                             <Card.Body className="p-8 flex flex-col gap-6">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-bold text-slate-300 uppercase tracking-wider">Recall Existing Borrower</label>
+                                    <label className="text-sm font-bold text-slate-200 uppercase tracking-wider">Recall Existing Borrower</label>
                                     <select
                                         className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                         value={borrower.id}
@@ -219,7 +208,7 @@ export default function Evaluate() {
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
-                                        <label className="text-sm font-bold text-slate-300 uppercase tracking-wider">Full Name</label>
+                                        <label className="text-sm font-bold text-slate-200 uppercase tracking-wider">Full Name</label>
                                         <input
                                             type="text"
                                             value={borrower.name}
@@ -229,7 +218,7 @@ export default function Evaluate() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-sm font-bold text-slate-300 uppercase tracking-wider">Email Address</label>
+                                        <label className="text-sm font-bold text-slate-200 uppercase tracking-wider">Email Address</label>
                                         <input
                                             type="email"
                                             value={borrower.email}
@@ -242,7 +231,7 @@ export default function Evaluate() {
 
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                     <div className="space-y-2">
-                                        <label className="text-sm font-bold text-slate-300 uppercase tracking-wider">Score</label>
+                                        <label className="text-sm font-bold text-slate-200 uppercase tracking-wider">Score</label>
                                         <input
                                             type="number"
                                             value={borrower.credit_score}
@@ -251,7 +240,7 @@ export default function Evaluate() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-sm font-bold text-slate-300 uppercase tracking-wider">Income ($)</label>
+                                        <label className="text-sm font-bold text-slate-200 uppercase tracking-wider">Income ($)</label>
                                         <input
                                             type="number"
                                             value={borrower.income}
@@ -260,7 +249,7 @@ export default function Evaluate() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-sm font-bold text-slate-300 uppercase tracking-wider">Years</label>
+                                        <label className="text-sm font-bold text-slate-200 uppercase tracking-wider">Years</label>
                                         <input
                                             type="number"
                                             value={borrower.employment_years}
@@ -269,7 +258,7 @@ export default function Evaluate() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-sm font-bold text-slate-300 uppercase tracking-wider">DTI</label>
+                                        <label className="text-sm font-bold text-slate-200 uppercase tracking-wider">DTI</label>
                                         <input
                                             type="number"
                                             step="0.01"
@@ -283,11 +272,10 @@ export default function Evaluate() {
                                 <motion.button
                                     onClick={() => setStep(1)}
                                     disabled={!borrower.name || !borrower.email}
-                                    className={`mt-4 w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all duration-300 ${
-                                        borrower.name && borrower.email
-                                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-blue-500/20 hover:shadow-blue-500/30'
-                                            : 'bg-slate-700 text-slate-500 cursor-not-allowed'
-                                    }`}
+                                    className={`mt-4 w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all duration-300 ${borrower.name && borrower.email
+                                        ? 'bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-blue-500/20 hover:shadow-blue-500/30'
+                                        : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                                        }`}
                                     whileHover={borrower.name && borrower.email ? { scale: 1.02 } : {}}
                                     whileTap={borrower.name && borrower.email ? { scale: 0.98 } : {}}
                                 >
@@ -312,7 +300,7 @@ export default function Evaluate() {
                             </Card.Header>
                             <Card.Body className="p-8 flex flex-col gap-6">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-bold text-slate-300 uppercase tracking-wider">Loan Amount ($)</label>
+                                    <label className="text-sm font-bold text-slate-200 uppercase tracking-wider">Loan Amount ($)</label>
                                     <input
                                         type="number"
                                         value={application.loan_amount}
@@ -322,7 +310,7 @@ export default function Evaluate() {
                                 </div>
 
                                 <div className="space-y-2">
-                                    <label className="text-sm font-bold text-slate-300 uppercase tracking-wider">Purpose</label>
+                                    <label className="text-sm font-bold text-slate-200 uppercase tracking-wider">Purpose</label>
                                     <select
                                         value={application.loan_purpose}
                                         onChange={(e) => setApplication({ ...application, loan_purpose: e.target.value })}
@@ -337,7 +325,7 @@ export default function Evaluate() {
 
                                 <div className="grid grid-cols-2 gap-6">
                                     <div className="space-y-2">
-                                        <label className="text-sm font-bold text-slate-300 uppercase tracking-wider">Term (Months)</label>
+                                        <label className="text-sm font-bold text-slate-200 uppercase tracking-wider">Term (Months)</label>
                                         <input
                                             type="number"
                                             value={application.term_months}
@@ -346,7 +334,7 @@ export default function Evaluate() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-sm font-bold text-slate-300 uppercase tracking-wider">Rate</label>
+                                        <label className="text-sm font-bold text-slate-200 uppercase tracking-wider">Rate</label>
                                         <input
                                             type="number"
                                             step="0.01"
@@ -370,7 +358,7 @@ export default function Evaluate() {
                                     <motion.button
                                         onClick={handleEvaluate}
                                         disabled={loading}
-                                        className="flex-[2] py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all"
+                                        className="flex-[2] py-3 bg-gradient-to-r from-blue-600 to-blue-800 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all"
                                         whileHover={!loading ? { scale: 1.02 } : {}}
                                         whileTap={!loading ? { scale: 0.98 } : {}}
                                     >
@@ -395,13 +383,12 @@ export default function Evaluate() {
                                 <Card elevated={true} gradient={true}>
                                     <Card.Header className="p-6 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
                                         <h2 className="text-2xl font-black text-white">Executive Summary</h2>
-                                        <div className={`px-4 py-2 rounded-full font-bold text-sm ${
-                                            result.decision.includes('approved')
-                                                ? 'bg-gradient-to-r from-green-600/20 to-emerald-600/20 text-green-300 border border-green-500/30'
-                                                : result.decision.includes('rejected')
-                                                    ? 'bg-gradient-to-r from-red-600/20 to-rose-600/20 text-red-300 border border-red-500/30'
-                                                    : 'bg-gradient-to-r from-yellow-600/20 to-amber-600/20 text-yellow-300 border border-yellow-500/30'
-                                        }`}>
+                                        <div className={`px-4 py-2 rounded-full font-bold text-sm ${result.decision.includes('approved')
+                                            ? 'bg-gradient-to-r from-green-600/20 to-emerald-600/20 text-green-300 border border-green-500/30'
+                                            : result.decision.includes('rejected')
+                                                ? 'bg-gradient-to-r from-red-600/20 to-rose-600/20 text-red-300 border border-red-500/30'
+                                                : 'bg-gradient-to-r from-yellow-600/20 to-amber-600/20 text-yellow-300 border border-yellow-500/30'
+                                            }`}>
                                             {result.decision.replace(/_/g, ' ')}
                                         </div>
                                     </Card.Header>
@@ -421,7 +408,7 @@ export default function Evaluate() {
                                                         <Tooltip key={idx} content={`Reference Case: ${id}`}>
                                                             <div className="flex-shrink-0 bg-slate-800/50 p-3 rounded-2xl border border-slate-700 flex items-center gap-2 cursor-help">
                                                                 <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-                                                                <span className="text-xs font-mono font-bold text-slate-300">CAS-{id.substring(0, 6)}</span>
+                                                                <span className="text-xs font-mono font-bold text-slate-200">CAS-{id.substring(0, 6)}</span>
                                                             </div>
                                                         </Tooltip>
                                                     )) : (

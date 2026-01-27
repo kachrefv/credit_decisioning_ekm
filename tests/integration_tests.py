@@ -236,7 +236,7 @@ class TestDomainIntegration(unittest.TestCase):
         )
         
         # Ingest credit data
-        credit_memory.ingest_credit_data(self.borrowers, self.applications, self.decisions)
+        credit_memory.ingest_credit_data_sync(self.borrowers, self.applications, self.decisions)
         
         # Verify data was ingested
         self.assertEqual(len(credit_memory.borrowers), len(self.borrowers))
@@ -463,7 +463,7 @@ class TestEndToEndIntegration(unittest.TestCase):
         ]
         
         # Ingest historical data
-        credit_memory.ingest_credit_data(historical_borrowers, historical_apps, historical_decisions)
+        credit_memory.ingest_credit_data_sync(historical_borrowers, historical_apps, historical_decisions)
         
         # Now system should be in mesh mode
         self.assertEqual(credit_memory.mode, "Mesh Mode")

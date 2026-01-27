@@ -13,7 +13,7 @@ class CreditDecisionRetriever(EKMRetriever):
         import time
         import hashlib
         self.risk_factors_map = {rf.id: rf for rf in risk_factors}
-        batch_size = 100
+        batch_size = 20
         for i in range(0, len(risk_factors), batch_size):
             batch = risk_factors[i:i + batch_size]
             points = []
