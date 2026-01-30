@@ -1,4 +1,3 @@
-import React from 'react';
 
 interface IconProps {
   className?: string;
@@ -12,7 +11,7 @@ export const DashboardIcon = ({ className = '', size = 'md' }: IconProps) => {
     lg: 'w-6 h-6',
     xl: 'w-8 h-8'
   };
-  
+
   return (
     <svg xmlns="http://www.w3.org/2000/svg" className={`${sizeClasses[size]} ${className}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <rect x="3" y="3" width="7" height="9" rx="1" />
@@ -30,7 +29,7 @@ export const EvaluateIcon = ({ className = '', size = 'md' }: IconProps) => {
     lg: 'w-6 h-6',
     xl: 'w-8 h-8'
   };
-  
+
   return (
     <svg xmlns="http://www.w3.org/2000/svg" className={`${sizeClasses[size]} ${className}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -46,7 +45,7 @@ export const DecisionsIcon = ({ className = '', size = 'md' }: IconProps) => {
     lg: 'w-6 h-6',
     xl: 'w-8 h-8'
   };
-  
+
   return (
     <svg xmlns="http://www.w3.org/2000/svg" className={`${sizeClasses[size]} ${className}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -65,7 +64,7 @@ export const TrainingIcon = ({ className = '', size = 'md' }: IconProps) => {
     lg: 'w-6 h-6',
     xl: 'w-8 h-8'
   };
-  
+
   return (
     <svg xmlns="http://www.w3.org/2000/svg" className={`${sizeClasses[size]} ${className}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M12 2L2 7l10 5 10-5-10-5z" />
@@ -82,7 +81,7 @@ export const BorrowersIcon = ({ className = '', size = 'md' }: IconProps) => {
     lg: 'w-6 h-6',
     xl: 'w-8 h-8'
   };
-  
+
   return (
     <svg xmlns="http://www.w3.org/2000/svg" className={`${sizeClasses[size]} ${className}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -100,7 +99,7 @@ export const RiskIcon = ({ className = '', size = 'md' }: IconProps) => {
     lg: 'w-6 h-6',
     xl: 'w-8 h-8'
   };
-  
+
   return (
     <svg xmlns="http://www.w3.org/2000/svg" className={`${sizeClasses[size]} ${className}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -116,7 +115,7 @@ export const SettingsIcon = ({ className = '', size = 'md' }: IconProps) => {
     lg: 'w-6 h-6',
     xl: 'w-8 h-8'
   };
-  
+
   return (
     <svg xmlns="http://www.w3.org/2000/svg" className={`${sizeClasses[size]} ${className}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <circle cx="12" cy="12" r="3" />
@@ -132,7 +131,7 @@ export const LogoutIcon = ({ className = '', size = 'md' }: IconProps) => {
     lg: 'w-6 h-6',
     xl: 'w-8 h-8'
   };
-  
+
   return (
     <svg xmlns="http://www.w3.org/2000/svg" className={`${sizeClasses[size]} ${className}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />

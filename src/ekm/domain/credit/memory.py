@@ -9,6 +9,9 @@ from .utils import calculate_credit_metrics, assess_borrower_risk_profile, detec
 from .embedding_generator import ACUEmbeddingGenerator, TextTemplateEmbeddingGenerator
 from ...infra.deepseek import DeepSeekCreditAgent
 
+import threading
+from scipy.special import expit  # Sigmoid function
+
 class CreditDecisionMemory:
     def __init__(self, d: int = 768, k: int = 10, mesh_threshold: int = 1000, 
                  deepseek_api_key: Optional[str] = None,
@@ -22,8 +25,14 @@ class CreditDecisionMemory:
         self.applications = []
         self.decisions = []
         self.risk_factors = {}  # Changed to dict for uniqueness
-        self.graph_engine = CreditGraphEngine(k=k)
+        self.graph_engine = CreditGraphEngine(k=k, embedding_dim=d)
         self.retriever = CreditDecisionRetriever(d=d)
+        
+        # Thread safety for concurrent access (Scalability fix)
+        self._lock = threading.RLock()
+        
+        # Smooth mode transition parameters
+        self.mesh_influence = 0.0  # 0.0 (Cold Start) to 1.0 (Full Mesh)
         self.mode = "Cold Start"
         
         # Initialize embedding generator (fixes Embedding Identity Problem)
@@ -38,30 +47,30 @@ class CreditDecisionMemory:
     async def ingest_credit_data(self, borrowers: List[BorrowerProfile], applications: List[LoanApplication], decisions: List[CreditDecision]):
         """
         Ingest credit data with enhanced ACU extraction.
-        
-        Now async to support AI-First extraction when enabled.
         """
-        # Use dicts to deduplicate incoming domain models by ID
-        existing_borrowers = {b.id: b for b in self.borrowers}
-        for b in borrowers:
-            existing_borrowers[b.id] = b
-        self.borrowers = list(existing_borrowers.values())
+        with self._lock:
+            # Use dicts to deduplicate incoming domain models by ID
+            existing_borrowers = {b.id: b for b in self.borrowers}
+            for b in borrowers:
+                existing_borrowers[b.id] = b
+            self.borrowers = list(existing_borrowers.values())
 
-        existing_apps = {a.id: a for a in self.applications}
-        for a in applications:
-            existing_apps[a.id] = a
-        self.applications = list(existing_apps.values())
+            existing_apps = {a.id: a for a in self.applications}
+            for a in applications:
+                existing_apps[a.id] = a
+            self.applications = list(existing_apps.values())
 
-        existing_decs = {d.id: d for d in self.decisions}
-        for d in decisions:
-            existing_decs[d.id] = d
-        self.decisions = list(existing_decs.values())
+            existing_decs = {d.id: d for d in self.decisions}
+            for d in decisions:
+                existing_decs[d.id] = d
+            self.decisions = list(existing_decs.values())
         
         # Extract heuristic-based risk factors
         print(f"Starting optimized ingestion for {len(applications)} apps. AI Enabled: {self.enable_ai_extraction}")
         for app in applications:
             for rf in self._extract_risk_factors_from_application(app):
-                self.risk_factors[rf.id] = rf
+                with self._lock:
+                    self.risk_factors[rf.id] = rf
         
         # AI-First Extraction: Use LLM to find nuanced risks
         if self.enable_ai_extraction and self.deepseek_agent:
@@ -73,19 +82,46 @@ class CreditDecisionMemory:
                     if ai_factors:
                         print(f"  > AI extracted {len(ai_factors)} factors for {app.id}")
                     for rf in ai_factors:
-                        self.risk_factors[rf.id] = rf
+                        with self._lock:
+                            self.risk_factors[rf.id] = rf
 
         for dec in decisions:
             for rf in self._extract_risk_factors_from_decision(dec):
-                self.risk_factors[rf.id] = rf
+                with self._lock:
+                    self.risk_factors[rf.id] = rf
 
             # Reasoning Loop: Feed AI decision insights back into the mesh
             if self.enable_ai_extraction and self.deepseek_agent:
                 await self.ingest_decision_insight(dec)
 
         self._check_mode_shift()
-        if self.mode == "Mesh Mode":
+        if self.mode != "Cold Start":
             self.update_mesh()
+            
+        # Audit for bias after ingestion (Regulatory Compliance fix)
+        self.perform_bias_audit()
+    
+    def perform_bias_audit(self):
+        """
+        Detect potential bias amplification in the 'Episodic Memory'.
+        Checks if specific risk clusters are forming around demographic proxies.
+        """
+        with self._lock:
+            active_factors = [rf for rf in self.risk_factors.values() if rf.status == 'active']
+            if len(active_factors) < 10:
+                return
+
+            # Example: Check if certain communities/zip codes are forming isolated high-risk clusters
+            demographic_risks = {}
+            for rf in active_factors:
+                postal_code = rf.metadata.get("postal_code", "unknown")
+                if rf.risk_level == "high":
+                    demographic_risks[postal_code] = demographic_risks.get(postal_code, 0) + 1
+            
+            # If one postal code has disproportionately high risk nodes, flag for review
+            for pc, count in demographic_risks.items():
+                if count > (len(active_factors) * 0.3): # 30% of high risks in one area
+                    print(f"WARNING: Potential bias detected for cluster '{pc}'. Audit recommended.")
     
     def ingest_credit_data_sync(self, borrowers: List[BorrowerProfile], applications: List[LoanApplication], decisions: List[CreditDecision]):
         """
@@ -396,11 +432,27 @@ class CreditDecisionMemory:
         return factors
 
     def _check_mode_shift(self):
-        factors_list = list(self.risk_factors.values())
-        self.mode = "Mesh Mode" if len(factors_list) >= self.mesh_threshold else "Cold Start"
+        """
+        Smooth Mode Shift implementation using sigmoid transition.
+        Addresses the 'Jitter' in decision stability.
+        """
+        with self._lock:
+            active_count = len([rf for rf in self.risk_factors.values() if rf.status == 'active'])
+            
+            # Sigmoid center at mesh_threshold, scale factor 100
+            self.mesh_influence = float(expit((active_count - self.mesh_threshold) / 100.0))
+            
+            if self.mesh_influence < 0.1:
+                self.mode = "Cold Start"
+            elif self.mesh_influence < 0.9:
+                self.mode = "Hybrid Mode"
+            else:
+                self.mode = "Mesh Mode"
+            
+            print(f"Mode Check: {self.mode} (Influence: {self.mesh_influence:.2f})")
 
     def update_mesh(self):
-        factors_list = list(self.risk_factors.values())
+        factors_list = [rf for rf in self.risk_factors.values() if rf.status == 'active']
         self.graph_engine.build_risk_knn_graph(factors_list)
         self.graph_engine.extract_risk_signatures(factors_list)
         self.retriever.build_index(factors_list)
@@ -428,10 +480,33 @@ class CreditDecisionMemory:
                     application.embedding if application.embedding is not None else np.random.randn(self.d),
                     self.graph_engine
                 )
-                similar_acus = [res[0] for res in similar_results[:5]]
+                similar_acus = [res[0] for res in similar_results[:5]] if similar_results else []
                 
+                if similar_results:
+                    # Retrieve top pattern tensor for the strongest connection to explain reasoning
+                    strongest_aku, strongest_score = similar_results[0]
+                    
+                    # Compute virtual pattern tensor for explanation
+                    from .utils import dequantize_mesh_reasoning
+                    T_qc = self.graph_engine.tensor_ops.compute_pattern_tensor(
+                        application.embedding if application.embedding is not None else np.random.randn(self.d),
+                        strongest_aku.embedding,
+                        semantic_similarity=strongest_score,
+                        temporal_weight=1.0
+                    )
+                    mesh_explanation = dequantize_mesh_reasoning(T_qc, [res[0].id for res in similar_results[:5]])
+                    
                 # 2. Let DeepSeek reason using the grounded ACU context
                 decision = await self.deepseek_agent.make_credit_decision(borrower, application, similar_cases=similar_acus)
+                
+                # Append mesh grounding explanation to the reason
+                if similar_results:
+                    decision.reason += f"\n\n[Mesh Grounding Evidence]: {mesh_explanation}"
+                
+                # Add mesh metadata
+                decision.metadata["mesh_influence"] = self.mesh_influence
+                decision.metadata["mesh_mode"] = self.mode
+                
                 return decision
             except Exception as e:
                 print(f"DeepSeek grounded evaluation failed: {e}. Falling back to pending review.")
@@ -473,7 +548,7 @@ class CreditDecisionMemory:
         self.retriever = CreditDecisionRetriever(d=self.d)
 
     def get_risk_factor_analytics(self) -> Dict[str, Any]:
-        factors_list = list(self.risk_factors.values())
+        factors_list = [rf for rf in self.risk_factors.values() if rf.status == 'active']
         total = len(factors_list)
         dist = {"low": 0, "medium": 0, "high": 0, "critical": 0}
         desc_counts = {}
@@ -496,11 +571,11 @@ class CreditDecisionMemory:
         }
 
     def _find_similar_cases(self, query_embedding: np.ndarray) -> List[str]:
-        factors_list = list(self.risk_factors.values())
+        factors_list = [rf for rf in self.risk_factors.values() if rf.status == 'active']
         if self.mode == "Cold Start" or not factors_list:
             if not factors_list: return []
             embeddings = np.stack([a.embedding for a in factors_list])
-            scores = np.stack([a.embedding for a in factors_list]) @ (query_embedding / np.linalg.norm(query_embedding))
+            scores = embeddings @ (query_embedding / np.linalg.norm(query_embedding))
             top_idx = np.argsort(scores)[-5:][::-1]
             return [factors_list[i].source_application_ids[0] for i in top_idx if factors_list[i].source_application_ids]
         else:
@@ -521,8 +596,9 @@ class CreditDecisionMemory:
         start_time = time.time()
         
         # 1. Importance-based Seeding: Sort by number of applications
+        # Only process active factors
         factors_list = sorted(
-            list(self.risk_factors.values()), 
+            [rf for rf in self.risk_factors.values() if rf.status == 'active'], 
             key=lambda x: len(x.source_application_ids), 
             reverse=True
         )
@@ -552,7 +628,7 @@ class CreditDecisionMemory:
                 node_neighbors[rf.id] = set()
 
         merged_mask = np.zeros(len(factors_list), dtype=bool)
-        consolidated_factors = {}
+        merged_count = 0
         
         for i in range(len(factors_list)):
             if merged_mask[i]:
@@ -590,7 +666,8 @@ class CreditDecisionMemory:
             if similar_indices:
                 # 4. Metadata Aggregation & Representative Selection
                 merged_embeddings = [seed_rf.embedding]
-                merged_source_ids = list(seed_rf.source_application_ids)
+                # Combine source IDs without duplicates
+                current_sources = set(seed_rf.source_application_ids)
                 
                 # Combine expert notes if any
                 combined_notes = [seed_rf.metadata.get("expert_notes", "")]
@@ -598,53 +675,47 @@ class CreditDecisionMemory:
                 
                 for idx in similar_indices:
                     merged_mask[idx] = True
-                    merged_embeddings.append(factors_list[idx].embedding)
-                    merged_source_ids.extend(factors_list[idx].source_application_ids)
+                    target_rf = factors_list[idx]
                     
-                    if "expert_notes" in factors_list[idx].metadata:
-                        combined_notes.append(factors_list[idx].metadata["expert_notes"])
+                    # Mark as archived
+                    target_rf.status = "archived"
+                    target_rf.metadata["archived_into"] = seed_rf.id
+                    target_rf.metadata["archived_at"] = time.time()
                     
-                    ts = factors_list[idx].metadata.get("timestamp", time.time())
+                    merged_embeddings.append(target_rf.embedding)
+                    current_sources.update(target_rf.source_application_ids)
+                    
+                    if "expert_notes" in target_rf.metadata:
+                        combined_notes.append(target_rf.metadata["expert_notes"])
+                    
+                    ts = target_rf.metadata.get("timestamp", time.time())
                     if ts < earliest_ts:
                         earliest_ts = ts
                 
-                # Create consolidated factor (Medoid approach: keeps Seed ID and description)
-                consolidated_rf = CreditRiskFactor(
-                    id=seed_rf.id,
-                    risk_factor=seed_rf.risk_factor,
-                    risk_level=seed_rf.risk_level,
-                    source_application_ids=list(set(merged_source_ids)),
-                    embedding=np.mean(merged_embeddings, axis=0),
-                    metadata={
-                        **seed_rf.metadata,
-                        "consolidated_from": len(similar_indices) + 1,
-                        "consolidation_timestamp": time.time(),
-                        "original_timestamp": earliest_ts,
-                        "aggregated_notes": "; ".join(filter(None, set(combined_notes)))
-                    }
-                )
-                consolidated_factors[consolidated_rf.id] = consolidated_rf
-            else:
-                consolidated_factors[seed_rf.id] = seed_rf
+                # Update the seed factor in place
+                seed_rf.source_application_ids = list(current_sources)
+                seed_rf.embedding = np.mean(merged_embeddings, axis=0)
+                seed_rf.metadata.update({
+                    "consolidated_from": len(similar_indices) + 1,
+                    "consolidation_timestamp": time.time(),
+                    "original_timestamp": earliest_ts,
+                    "aggregated_notes": "; ".join(filter(None, set(combined_notes)))
+                })
+                merged_count += len(similar_indices)
             
             merged_mask[i] = True
         
-        # 5. Atomic Update: swap internal state
-        self.risk_factors = consolidated_factors
-        
-        # Rebuild topological signatures and graph
-        # This is CRITICAL after consolidation to reflect new node structure
+        # Rebuild topological signatures and graph using ONLY active factors
         if self.mode == "Mesh Mode" or original_count > 0:
             self.update_mesh()
         
         duration = time.time() - start_time
-        consolidated_count = len(consolidated_factors)
         
         return {
             "original_count": original_count,
-            "consolidated_count": consolidated_count,
-            "merged_count": original_count - consolidated_count,
+            "consolidated_count": original_count - merged_count,
+            "merged_count": merged_count,
             "merge_threshold": merge_threshold,
             "duration_seconds": round(duration, 3),
-            "status": "Robust consolidation complete"
+            "status": "Robust consolidation complete (archived duplicates)"
         }

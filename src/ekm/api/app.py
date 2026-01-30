@@ -37,7 +37,7 @@ from .schemas import (
     ListDecisionsResponse
 )
 from ..domain.credit.memory import CreditDecisionMemory
-from ..domain.credit.models import BorrowerProfile, LoanApplication, CreditDecision
+from ..domain.credit.models import BorrowerProfile, LoanApplication, CreditDecision, CreditRiskFactor
 from ..services.embedding_service import SentenceTransformerEmbeddingService
 
 from sqlalchemy.orm import Session
@@ -66,19 +66,71 @@ async def startup_event():
 
 async def _ingest_untrained_data(db: Session, full_load: bool = False):
     """Helper to fetch from DB and ingest into credit_memory."""
-    if full_load:
-        credit_memory.clear_memory(clear_storage=True)
-
     repo = CreditRepository(db)
     
-    # If full_load, we fetch EVERYTHING (for startup)
-    # Otherwise, we only fetch UNTRAINED records (for incremental /train)
-    filter_trained = None if full_load else False
+    if full_load:
+        credit_memory.clear_memory(clear_storage=True)
+        # Load persisted Risk Factors first
+        db_rfs = repo.get_risk_factors()
+        for drf in db_rfs:
+            rf = CreditRiskFactor(
+                id=drf.id,
+                risk_factor=drf.risk_factor,
+                risk_level=drf.risk_level,
+                source_application_ids=drf.source_application_ids or [],
+                status=drf.status,
+                embedding=np.array(drf.embedding) if drf.embedding else None,
+                metadata=drf.extra_metadata or {},
+                timestamp=drf.timestamp.timestamp() if drf.timestamp else time.time()
+            )
+            credit_memory.risk_factors[rf.id] = rf
+        
+        # After loading factors, we still need to load borrowers/apps/decs for context,
+        # but we DON'T want to re-extract for them.
+        # We'll fetch them but we'll mark them as "already trained" for the ingestion call
+        # Actually, the simplest way is to only ingest UNTRAINED data for extraction,
+        # and just populate the lists for the rest.
     
-    hist_borrowers = repo.get_borrowers(is_trained=filter_trained, limit=2000)
-    hist_apps = repo.get_applications(is_trained=filter_trained, limit=2000)
-    hist_decs = repo.get_decisions(is_trained=filter_trained, limit=2000)
+    # We only want to RUN EXTRACTION for untrained records
+    hist_borrowers = repo.get_borrowers(is_trained=False, limit=2000)
+    hist_apps = repo.get_applications(is_trained=False, limit=2000)
+    hist_decs = repo.get_decisions(is_trained=False, limit=2000)
     
+    # For full_load, we also need to populate the memory's lists with OLD data 
+    # so that retrieval/evaluation has full context, but without re-triggering extraction.
+    if full_load:
+        all_borrowers = repo.get_borrowers(is_trained=True, limit=5000)
+        all_apps = repo.get_applications(is_trained=True, limit=5000)
+        all_decs = repo.get_decisions(is_trained=True, limit=5000)
+        
+        # Populate memory lists directly for already trained data
+        for b in all_borrowers:
+            credit_memory.borrowers.append(BorrowerProfile(
+                id=b.id, name=b.name, credit_score=b.credit_score, income=b.income,
+                employment_years=b.employment_years, debt_to_income_ratio=b.debt_to_income_ratio,
+                address=b.address, phone=b.phone, email=b.email, 
+                embedding=np.random.randn(768), metadata=b.extra_metadata or {}
+            ))
+        for a in all_apps:
+            credit_memory.applications.append(LoanApplication(
+                id=a.id, borrower_id=a.borrower_id, loan_amount=a.loan_amount,
+                loan_purpose=a.loan_purpose, term_months=a.term_months,
+                interest_rate=a.interest_rate, metadata=a.extra_metadata or {}
+            ))
+        for d in all_decs:
+            credit_memory.decisions.append(CreditDecision(
+                id=d.id, application_id=d.application_id, borrower_id=d.borrower_id,
+                decision=d.decision, risk_score=d.risk_score, confidence=d.confidence,
+                reason=d.reason, similar_cases=d.similar_cases or [],
+                metadata=d.extra_metadata or {}
+            ))
+            
+        # Initialize mesh if we have data
+        if credit_memory.risk_factors:
+            credit_memory._check_mode_shift()
+            if credit_memory.mode == "Mesh Mode":
+                credit_memory.update_mesh()
+
     if not hist_borrowers and not hist_apps and not hist_decs:
         return 0
 
@@ -114,8 +166,21 @@ async def _ingest_untrained_data(db: Session, full_load: bool = False):
         ) for d in hist_decs
     ]
     
-    # Ingest into memory (Append mode) - now async with AI extraction
+    # Ingest into memory (this will trigger AI extraction ONLY for these new records)
     await credit_memory.ingest_credit_data(borrowers, apps, decs)
+    
+    # Persist the newly created/updated Risk Factors
+    for rf in credit_memory.risk_factors.values():
+        repo.save_risk_factor({
+            "id": rf.id,
+            "risk_factor": rf.risk_factor,
+            "risk_level": rf.risk_level,
+            "source_application_ids": rf.source_application_ids,
+            "status": rf.status,
+            "embedding": rf.embedding.tolist() if rf.embedding is not None else None,
+            "metadata": rf.metadata,
+            "timestamp": rf.timestamp
+        })
     
     # Mark records as trained in DB
     b_ids = [b.id for b in hist_borrowers]
@@ -349,7 +414,7 @@ async def risk_factors():
             "risk_factor": rf.risk_factor,
             "risk_level": rf.risk_level,
             "source_application_ids": rf.source_application_ids,
-            "timestamp": datetime.fromtimestamp(rf.metadata.get("timestamp", time.time()))
+            "timestamp": datetime.fromtimestamp(rf.timestamp)
         })
     return RiskFactorStatusResponse(
         analytics=analytics,

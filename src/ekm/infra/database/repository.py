@@ -1,11 +1,33 @@
 from sqlalchemy.orm import Session
-from ekm.infra.database.models import BorrowerORM, ApplicationORM, DecisionORM, UserORM
+from ekm.infra.database.models import BorrowerORM, ApplicationORM, DecisionORM, UserORM, RiskFactorORM
 from typing import List, Optional
 from datetime import datetime
 
 class CreditRepository:
     def __init__(self, db: Session):
         self.db = db
+
+    def save_risk_factor(self, rf_data: dict):
+        if 'timestamp' in rf_data and isinstance(rf_data['timestamp'], (int, float)):
+            rf_data['timestamp'] = datetime.utcfromtimestamp(rf_data['timestamp'])
+        db_rf = self.db.query(RiskFactorORM).filter(RiskFactorORM.id == rf_data['id']).first()
+        if db_rf:
+            for key, value in rf_data.items():
+                if key == "metadata":
+                    setattr(db_rf, "extra_metadata", value)
+                else:
+                    setattr(db_rf, key, value)
+        else:
+            data = rf_data.copy()
+            if "metadata" in data:
+                data["extra_metadata"] = data.pop("metadata")
+            db_rf = RiskFactorORM(**data)
+            self.db.add(db_rf)
+        self.db.commit()
+        return db_rf
+
+    def get_risk_factors(self, skip: int = 0, limit: int = 2000) -> List[RiskFactorORM]:
+        return self.db.query(RiskFactorORM).offset(skip).limit(limit).all()
 
     def save_borrower(self, borrower_data: dict):
         if 'timestamp' in borrower_data and isinstance(borrower_data['timestamp'], (int, float)):

@@ -46,6 +46,8 @@ class CreditRiskFactor:
     source_application_ids: List[str]
     embedding: Optional[np.ndarray] = None
     structural_signature: Optional[np.ndarray] = None
+    status: str = "active"  # "active", "archived"
+    timestamp: float = field(default_factory=time.time)
     metadata: Dict = field(default_factory=dict)
 
 @dataclass

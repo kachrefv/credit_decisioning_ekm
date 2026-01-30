@@ -1,0 +1,5 @@
+src/components/Header.tsx(4,10): error TS6133: 'SettingsIcon' is declared but its value is never read.
+src/components/Header.tsx(21,55): error TS6133: 'onNavigate' is declared but its value is never read.
+src/components/Icons.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/Sidebar.tsx(10,3): error TS6133: 'SettingsIcon' is declared but its value is never read.
+src/pages/Evaluate.tsx(16,12): error TS6133: 'fetchingBorrowers' is declared but its value is never read.

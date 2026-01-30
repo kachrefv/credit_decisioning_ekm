@@ -69,3 +69,16 @@ class UserORM(Base):
     is_superuser = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
+
+class RiskFactorORM(Base):
+    __tablename__ = "risk_factors"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(String, primary_key=True, index=True)
+    risk_factor = Column(String)
+    risk_level = Column(String)
+    source_application_ids = Column(JSON, default=[])
+    status = Column(String, default="active") # "active", "archived"
+    embedding = Column(JSON, nullable=True)
+    extra_metadata = Column("metadata", JSON, default={})
+    timestamp = Column(DateTime, default=datetime.utcnow)

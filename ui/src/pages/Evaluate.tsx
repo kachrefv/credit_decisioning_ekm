@@ -13,7 +13,6 @@ export default function Evaluate() {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<any>(null);
     const [borrowerList, setBorrowerList] = useState<any[]>([]);
-    const [fetchingBorrowers, setFetchingBorrowers] = useState(false);
     const [submittingHuman, setSubmittingHuman] = useState(false);
     const [expertNotes, setExpertNotes] = useState('');
 
@@ -22,14 +21,12 @@ export default function Evaluate() {
     }, []);
 
     const fetchBorrowers = async () => {
-        setFetchingBorrowers(true);
         try {
             const res = await client.get('/borrowers');
             setBorrowerList(res.data.borrowers || []);
         } catch (err) {
             console.error('Failed to fetch borrowers:', err);
         } finally {
-            setFetchingBorrowers(false);
         }
     };
 

@@ -380,7 +380,7 @@ class ScalableEKM:
         )
         
         # Maintain AKU lists for compatibility
-        self.akus: List[A] = []
+        self.akus: List[AKU] = []
         self.akus_by_id: Dict[str, AKU] = {}
         
         # Performance tracking

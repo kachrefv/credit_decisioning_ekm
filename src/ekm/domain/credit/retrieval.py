@@ -6,7 +6,7 @@ from qdrant_client.http import models as qmodels
 
 class CreditDecisionRetriever(EKMRetriever):
     def __init__(self, d: int = 768, candidate_size: int = 100, collection_name: str = "credit_risk_factors"):
-        super().__init__(d=d, candidate_size=candidate_size, collection_name=collection_name)
+        super().__init__(d=d, candidate_size=candidate_size, collection_name=collection_name, id_payload_key="risk_factor_id")
         self.risk_factors_map = {}
 
     def build_index(self, risk_factors: List[CreditRiskFactor]):
@@ -41,35 +41,10 @@ class CreditDecisionRetriever(EKMRetriever):
         self._ensure_collection()
 
     def retrieve_risk_factors(self, query_embedding: np.ndarray, graph_engine) -> List[Tuple[CreditRiskFactor, float]]:
-        # This mirrors the parent logic but with a different map
-        search_result = self.client.query_points(
-            collection_name=self.collection_name,
-            query=query_embedding.tolist(),
-            limit=self.candidate_size
-        )
-        candidates = []
-        for res in search_result.points if hasattr(search_result, 'points') else search_result:
-            rf_id = res.payload.get("risk_factor_id")
-            if rf_id in self.risk_factors_map:
-                candidates.append(self.risk_factors_map[rf_id])
-        
-        if not candidates: return []
-
-        q = query_embedding @ self.W_Q
-        ks = np.stack([cand.structural_signature @ self.W_K for cand in candidates])
-        vs = np.stack([cand.embedding @ self.W_V for cand in candidates])
-        scores = (q @ ks.T) / np.sqrt(self.d)
-        
-        B = np.zeros((len(candidates), len(candidates)))
-        for i, c_i in enumerate(candidates):
-            for j, c_j in enumerate(candidates):
-                if graph_engine.graph.has_edge(c_i.id, c_j.id):
-                    B[i, j] = graph_engine.graph[c_i.id][c_j.id]['weight']
-                else: B[i, j] = -1e9
-        
-        final_scores = np.exp(scores - np.max(scores))
-        final_scores /= np.sum(final_scores)
-        return sorted(zip(candidates, final_scores), key=lambda x: x[1], reverse=True)
+        # Use child-specific map for candidates
+        self.akus_map = self.risk_factors_map
+        # Call parent retrieve which now has fixed tensor-based attention
+        return super().retrieve(query_embedding, graph_engine)
 
     def find_similar_risk_cases(self, query_embedding: np.ndarray, risk_level: str = None) -> List[Tuple[CreditRiskFactor, float]]:
         search_result = self.client.query_points(

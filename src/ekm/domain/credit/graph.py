@@ -4,15 +4,26 @@ from typing import List, Dict, Tuple
 from .models import CreditRiskFactor
 
 class CreditGraphEngine:
-    def __init__(self, k: int = 10, alpha: float = 0.5, beta: float = 0.3, gamma: float = 0.2, tau: float = 86400):
+    def __init__(self, k: int = 10, alpha: float = 0.5, beta: float = 0.3, gamma: float = 0.2, tau: float = 86400,
+                 embedding_dim: int = 768, projection_dim: int = 64):
         self.k = k
         self.alpha = alpha
         self.beta = beta
         self.gamma = gamma
         self.tau = tau
         self.graph = nx.DiGraph()
+        
+        # Initialize proper tensor operations with higher-order terms
+        from ekm.core.tensor_ops import TensorOperations
+        self.tensor_ops = TensorOperations(
+            embedding_dim=embedding_dim,
+            projection_dim=projection_dim,
+            k_sparse=k,
+            higher_order_terms=True
+        )
 
     def build_risk_knn_graph(self, risk_factors: List[CreditRiskFactor]):
+        self.graph.clear()
         if not risk_factors:
             return
 

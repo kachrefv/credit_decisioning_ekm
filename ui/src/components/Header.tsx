@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { User } from '@heroui/react';
-import { SettingsIcon, LogoutIcon } from './Icons';
+import { LogoutIcon } from './Icons';
 
 interface HeaderProps {
   currentView: string;
@@ -18,7 +18,7 @@ const menuItems = [
   { label: "Risk Analysis", view: 'graph' },
 ];
 
-const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onLogout }) => {
+const Header: React.FC<HeaderProps> = ({ currentView, onLogout }) => {
   return (
     <header className="h-16 flex items-center justify-between px-6 bg-gradient-to-r from-slate-800/80 to-slate-900/80 backdrop-blur-xl border-b border-slate-700/50 sticky top-0 z-40">
       <div className="flex items-center">
@@ -28,7 +28,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onLogout }) =>
           </div>
           <p className="font-bold text-lg tracking-tight uppercase leading-none text-white">Credithos</p>
         </div>
-        <motion.h1 
+        <motion.h1
           className="hidden md:block text-base font-bold text-slate-200 uppercase tracking-widest"
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -48,7 +48,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onLogout }) =>
           <LogoutIcon size="sm" />
           <span>Logout</span>
         </motion.button>
-        
+
         <motion.div
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}

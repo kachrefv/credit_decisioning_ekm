@@ -9,16 +9,24 @@ import Profile from './pages/Profile';
 import Home from './pages/Home';
 import Decisions from './pages/Decisions';
 import GraphPage from './pages/GraphPage';
+import Setup from './pages/Setup';
 import { setAuthToken } from './api/client';
 import { FullPageLoading } from './components/Loading';
 
-type View = 'login' | 'register' | 'dashboard' | 'evaluate' | 'decisions' | 'train' | 'borrowers' | 'profile' | 'graph';
+type View = 'login' | 'register' | 'dashboard' | 'evaluate' | 'decisions' | 'train' | 'borrowers' | 'profile' | 'graph' | 'setup';
 
 function App() {
   const [view, setView] = useState<View>('login');
   const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
+    const isSetupDone = localStorage.getItem('setup_done');
+    if (!isSetupDone) {
+      setView('setup');
+      setIsInitializing(false);
+      return;
+    }
+
     const token = localStorage.getItem('auth_token');
     if (token) {
       setAuthToken(token);
@@ -29,6 +37,11 @@ function App() {
       setIsInitializing(false);
     }, 1000);
   }, []);
+
+  const handleSetupFinish = () => {
+    localStorage.setItem('setup_done', 'true');
+    setView('login');
+  };
 
   const handleLoginSuccess = () => {
     setView('dashboard');
@@ -60,6 +73,9 @@ function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-foreground">
+      {view === 'setup' && (
+        <Setup onFinish={handleSetupFinish} />
+      )}
       {view === 'login' && (
         <Login
           onLoginSuccess={handleLoginSuccess}

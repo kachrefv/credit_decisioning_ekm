@@ -66,9 +66,9 @@ export default function Decisions() {
     };
 
     const getRiskColor = (score: number) => {
-        if (score < 0.3) return "success";
-        if (score < 0.7) return "warning";
-        return "danger";
+        if (score < 0.3) return "bg-emerald-500";
+        if (score < 0.7) return "bg-amber-500";
+        return "bg-rose-500";
     };
 
     const handleRowClick = (decision: any) => {
@@ -106,14 +106,15 @@ export default function Decisions() {
                     </div>
                 );
             case "risk_score":
+                const riskColorClass = getRiskColor(cellValue);
                 return (
                     <div className="flex flex-col gap-1 w-20">
                         <div className="flex justify-between items-center px-1">
                             <span className="text-[10px] font-bold text-default-400">{(cellValue * 100).toFixed(0)}%</span>
                         </div>
-                        <div className="w-full h-1.5 bg-default-100 rounded-full overflow-hidden">
+                        <div className="w-full h-1.5 bg-default-100 dark:bg-zinc-800 rounded-full overflow-hidden">
                             <div
-                                className={`h-full bg-${getRiskColor(cellValue)} transition-all duration-1000`}
+                                className={`h-full ${riskColorClass} transition-all duration-1000`}
                                 style={{ width: `${cellValue * 100}%` }}
                             ></div>
                         </div>

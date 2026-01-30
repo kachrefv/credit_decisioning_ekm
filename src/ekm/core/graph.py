@@ -41,11 +41,14 @@ class GraphEngine:
         # Compute similarity matrix
         cosine_sim = np.matmul(norm_embeddings, norm_embeddings.T)
 
-        # Compute temporal weights matrix
-        temporal_weights = np.zeros_like(cosine_sim)
-        for i in range(len(akus)):
-            for j in range(len(akus)):
-                temporal_weights[i, j] = compute_temporal_weight(timestamps[i], timestamps[j], self.tau)
+        # Vectorized temporal weights matrix computation
+        # W_ij = exp(-|t_i - t_j| / tau)
+        time_diffs = np.abs(timestamps[:, np.newaxis] - timestamps[np.newaxis, :])
+        temporal_weights = np.exp(-time_diffs / self.tau)
+
+        # Update higher-order tensors based on the current batch of data
+        # This addresses the 'Randomness Trap' by making tensors learn from interactions
+        self.tensor_ops.update_higher_order_tensors(norm_embeddings)
 
         # Compute sparse pattern tensors using proper tensor operations
         sparse_pattern_tensors, connection_indices = self.tensor_ops.compute_sparse_pattern_tensors(

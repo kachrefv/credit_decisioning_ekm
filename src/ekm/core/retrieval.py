@@ -9,7 +9,7 @@ from .config import get_config
 
 class EKMRetriever:
     def __init__(self, d: int = 768, candidate_size: int = 100, collection_name: str = "ekm_akus",
-                 projection_dim: int = 64, config_path: str = None):
+                 projection_dim: int = 64, config_path: str = None, id_payload_key: str = "aku_id"):
         # Load configuration
         self.config = get_config(config_path)
 
@@ -17,6 +17,7 @@ class EKMRetriever:
         self.candidate_size = candidate_size or self.config.candidate_size
         self.collection_name = collection_name
         self.projection_dim = projection_dim or self.config.projection_dim
+        self.id_payload_key = id_payload_key
 
         # Load credentials from configuration
         qdrant_url = self.config.qdrant_url
@@ -88,38 +89,47 @@ class EKMRetriever:
 
         candidates = []
         for res in search_result.points if hasattr(search_result, 'points') else search_result:
-            aku_id = res.payload.get("aku_id")
+            aku_id = res.payload.get(self.id_payload_key)
             if aku_id in self.akus_map:
                 candidates.append(self.akus_map[aku_id])
 
         if not candidates:
             return []
 
-        # Enhanced attention mechanism with proper tensor operations
-        q = query_embedding @ self.W_Q
-        ks = np.stack([cand.structural_signature @ self.W_K for cand in candidates])
-        vs = np.stack([cand.embedding @ self.W_V for cand in candidates])
-
-        # Compute raw attention scores
-        raw_scores = (q @ ks.T) / np.sqrt(self.d)
-
-        # Apply softmax to get attention probabilities
-        shifted_scores = raw_scores - np.max(raw_scores)
-        attention_weights = np.exp(shifted_scores)
-        attention_weights /= np.sum(attention_weights)
+        # Enhanced attention mechanism using Tensor Operations (Fixed 'Mesh Grounding')
+        # This replaces the simple Q-K dot product with a proper tensor contraction
+        
+        # Pre-project all candidates for the tensor operation
+        psi_query = query_embedding @ self.tensor_ops.psi_matrix
+        psi_candidates = np.stack([cand.embedding @ self.tensor_ops.psi_matrix for cand in candidates])
+        
+        # Compute attention scores using tensor interactions
+        final_scores = np.zeros(len(candidates))
+        for i, cand in enumerate(candidates):
+            # Compute the pattern tensor that would exist between query and candidate
+            sim_qc = float(query_embedding @ cand.embedding / (np.linalg.norm(query_embedding) * np.linalg.norm(cand.embedding) + 1e-9))
+            T_qc = self.tensor_ops.compute_pattern_tensor(
+                query_embedding, cand.embedding, 
+                semantic_similarity=sim_qc,
+                temporal_weight=1.0, 
+                alpha=0.6, beta=0.1, gamma=0.3
+            )
+            
+            # Grounding score: q^T * T_qc * c (Proper tensor contraction)
+            final_scores[i] = psi_query @ T_qc @ psi_candidates[i]
 
         # Incorporate graph connectivity weights (mesh-aware re-ranking)
-        final_scores = attention_weights.copy()
         for i, c_i in enumerate(candidates):
+            neighbor_bonus = 0.0
             for j, c_j in enumerate(candidates):
-                if graph_engine.graph.has_edge(c_i.id, c_j.id):
-                    # Apply mesh connectivity weight as described in the report
-                    edge_weight = graph_engine.graph[c_i.id][c_j.id]['weight']
-                    # Modulate attention by connectivity strength
-                    final_scores[i] *= (1 + edge_weight * 0.1)  # Small modulation factor
+                if i != j and graph_engine.graph.has_edge(c_i.id, c_j.id):
+                    edge_weight = graph_engine.graph[c_i.id][c_j.id].get('weight', 1.0)
+                    neighbor_bonus += edge_weight * 0.2
+            final_scores[i] *= (1 + neighbor_bonus)
 
-        # Normalize final scores
-        final_scores = final_scores / np.sum(final_scores) if np.sum(final_scores) > 0 else final_scores
+        # Apply softmax for normalization
+        exp_scores = np.exp(final_scores - np.max(final_scores))
+        attention_weights = exp_scores / np.sum(exp_scores)
 
-        results = sorted(zip(candidates, final_scores), key=lambda x: x[1], reverse=True)
+        results = sorted(zip(candidates, attention_weights), key=lambda x: x[1], reverse=True)
         return results

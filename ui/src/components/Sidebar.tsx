@@ -7,7 +7,6 @@ import {
   TrainingIcon,
   BorrowersIcon,
   RiskIcon,
-  SettingsIcon,
   LogoutIcon
 } from './Icons';
 

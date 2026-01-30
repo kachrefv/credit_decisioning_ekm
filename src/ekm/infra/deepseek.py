@@ -44,11 +44,15 @@ class DeepSeekCreditAgent:
             for i, rf in enumerate(similar_cases):
                 case_context += f"{i+1}. Factor: {rf.risk_factor}, Level: {rf.risk_level}\n"
 
+        # Format borrower metadata for inclusion in the prompt
+        borrower_metadata_context = self._format_metadata(borrower.metadata)
+
         system_prompt = (
             "You are a Senior Credit Underwriter. "
             "Evaluate the loan application based on the provided borrower profile and application details. "
             "Crucially, use the 'Grounding Context' provided below, which contains similar Atomic Credit Units (ACUs) "
             "from historical decisions, to maintain consistency with historical standards. "
+            "Also consider the borrower metadata context provided. "
             "Return your final evaluation in strict JSON format."
         )
 
@@ -56,8 +60,16 @@ class DeepSeekCreditAgent:
             f"Borrower: {borrower.name}\n"
             f"Credit Score: {borrower.credit_score}\n"
             f"Income: ${borrower.income}\n"
+            f"Employment Years: {borrower.employment_years}\n"
+            f"Debt-to-Income Ratio: {borrower.debt_to_income_ratio}\n"
+            f"Address: {borrower.address}\n"
+            f"Phone: {borrower.phone}\n"
+            f"Email: {borrower.email}\n"
+            f"Borrower Metadata Context:\n{borrower_metadata_context}\n"
             f"Loan Amount: ${application.loan_amount}\n"
             f"Loan Purpose: {application.loan_purpose}\n"
+            f"Term: {application.term_months} months\n"
+            f"Interest Rate: {application.interest_rate}%\n"
             f"{case_context}\n\n"
             "Return JSON with the following fields: 'decision' (approved/rejected/requires_manual_review), "
             "'risk_score' (0.0 to 1.0), 'confidence' (0.0 to 1.0), 'reason' (detailed explanation)."
