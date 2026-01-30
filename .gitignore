@@ -45,6 +45,8 @@ log.txt
 # OS
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
 
 # Project specific
 hitl_result.txt
@@ -52,3 +54,13 @@ init_error.txt
 sys_path*.txt
 *.tex
 *.pdf
+api_log.txt
+test_data.md
+ui/tsc_errors.txt
+ui/tsc_errors_new.txt
+ui/tsc_plain.txt
+node_modules/
+dist/
+dist-electron/
+.env*
+!.env.example
